@@ -1,7 +1,7 @@
 """Config flow: a single "Chauffage" entry, created from Settings → Devices & services.
 
-Options: default settings (override duration, when a change by hand ends, use of the
-thermostats' climate presets) and the Chauffage panel's entry in the sidebar, with its name.
+Options: default settings (override duration, when a change by hand ends, whether Chauffage
+controls the HVAC mode, use of the thermostats' climate presets) and the Chauffage panel's entry in the sidebar, with its name.
 Presets and what they mean per thermostat are set in the panel.
 """
 
@@ -18,6 +18,7 @@ from homeassistant.helpers import selector
 from .const import (
     ACCESS_LEVELS,
     CONF_ACCESS_LEVEL,
+    CONF_HVAC_MODE_CONTROL,
     CONF_MANUAL_OVERRIDE_END,
     CONF_OFF_OVERRIDE_END,
     CONF_OVERRIDE_DURATION,
@@ -25,6 +26,7 @@ from .const import (
     CONF_SIDEBAR_TITLE,
     CONF_USE_PRESETS,
     DEFAULT_ACCESS_LEVEL,
+    DEFAULT_HVAC_MODE_CONTROL,
     DEFAULT_MANUAL_OVERRIDE_END,
     DEFAULT_OFF_OVERRIDE_END,
     DEFAULT_OVERRIDE_DURATION,
@@ -80,6 +82,15 @@ class ChauffageOptionsFlow(OptionsFlow):
                 data.pop(CONF_SIDEBAR_TITLE, None)
                 if title:
                     data[CONF_SIDEBAR_TITLE] = title
+                self._data = data
+                # Control the HVAC mode turned off (#159): the slots that change are shown first,
+                # as the panel does. Closing the dialog then changes nothing
+                if CONF_HVAC_MODE_CONTROL in user_input and self._runtime.settings.hvac_mode_control != data[CONF_HVAC_MODE_CONTROL]:
+                    _, changes = self._runtime.schedules.hvac_mode_changes(data[CONF_HVAC_MODE_CONTROL])
+                    if changes:
+                        self._changes = changes
+                        return await self.async_step_hvac_mode_control()
+                    await self._runtime.schedules.set_hvac_mode_control(data[CONF_HVAC_MODE_CONTROL])
                 return self.async_create_entry(data=data)
         options = {**self.config_entry.options, **(user_input or {})}
         schema = vol.Schema({
@@ -105,6 +116,10 @@ class ChauffageOptionsFlow(OptionsFlow):
                 selector.SelectSelectorConfig(options=list(MANUAL_OVERRIDE_ENDS), translation_key=CONF_MANUAL_OVERRIDE_END,
                                               mode=selector.SelectSelectorMode.LIST)
             ),
+            # Whether Chauffage controls the HVAC mode, for the house (#159)
+            vol.Required(
+                CONF_HVAC_MODE_CONTROL, default=options.get(CONF_HVAC_MODE_CONTROL, DEFAULT_HVAC_MODE_CONTROL),
+            ): selector.BooleanSelector(),
             vol.Required(
                 CONF_USE_PRESETS, default=options.get(CONF_USE_PRESETS, DEFAULT_USE_PRESETS),
             ): selector.BooleanSelector(),
@@ -122,3 +137,70 @@ class ChauffageOptionsFlow(OptionsFlow):
             ),
         })
         return self.async_show_form(step_id="init", data_schema=schema, errors=errors)
+
+    @property
+    def _runtime(self) -> Any:
+        return self.config_entry.runtime_data
+
+    async def async_step_hvac_mode_control(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """The slots that change when the house stops controlling the HVAC mode (#159).
+        Submitted, the weeks are converted and the options saved. Closed, nothing changes."""
+        if user_input is not None:
+            await self._runtime.schedules.set_hvac_mode_control(self._data[CONF_HVAC_MODE_CONTROL])
+            return self.async_create_entry(data=self._data)
+        return self.async_show_form(step_id="hvac_mode_control", data_schema=vol.Schema({}),
+                                    description_placeholders={"changes": changes_text(self.hass, self._runtime, self._changes)})
+
+
+# The list of the slots that change, as the panel shows it (#159). Home Assistant does not
+# translate a list in a placeholder: its words, in Home Assistant's language, English otherwise
+TEXTS = {
+    "en": {
+        "days": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], "removed": "removed",
+        "hvac_modes": {"off": "Off", "heat": "Heat", "cool": "Cool", "heat_cool": "Heat/Cool", "dry": "Dry",
+                       "auto": "Auto", "fan_only": "Fan only"},
+    },
+    "fr": {
+        "days": ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"], "removed": "supprimé",
+        "hvac_modes": {"off": "Éteint", "heat": "Chauffe", "cool": "Clim", "heat_cool": "Chauffe/Clim",
+                       "dry": "Déshum.", "auto": "Auto", "fan_only": "Ventilation"},
+    },
+}
+
+
+def days_text(days: list[int], names: list[str]) -> str:
+    """Days in a row are a range: "Mon–Fri", "Sat, Sun", "Mon, Wed"."""
+    runs: list[list[int]] = []
+    for day in sorted(days):
+        if runs and runs[-1][1] == day - 1:
+            runs[-1][1] = day
+        else:
+            runs.append([day, day])
+    return ", ".join(f"{names[a]}–{names[b]}" if b - a >= 2 else f"{names[a]}, {names[b]}" if b > a else names[a]
+                     for a, b in runs)
+
+
+def changes_text(hass: Any, runtime: Any, changes: list[dict[str, Any]]) -> str:
+    """A Markdown list: each thermostat and schedule, then its slots, a slot's days together:
+    "Mon–Sun · 22:30 · Off → removed", "Mon–Fri · 06:30 · Comfort, Cool → Comfort"."""
+    texts = TEXTS["fr" if (hass.config.language or "").startswith("fr") else "en"]
+    installation = runtime.installation
+    groups: dict[tuple[str, str], dict[tuple, list[int]]] = {}
+    for c in changes:
+        slots = groups.setdefault((c["entity_id"], c["schedule"]), {})
+        slots.setdefault((c["start"], c["preset"], c["hvac_mode"], c["change"]), []).append(c["day"])
+
+    def preset(preset_id: str) -> str:
+        return (installation.presets_by_id.get(preset_id) or {}).get("name", preset_id)
+
+    lines = []
+    for (entity_id, schedule), slots in groups.items():
+        state = hass.states.get(entity_id)
+        name = (state and state.attributes.get("friendly_name")) or entity_id
+        lines.append(f"- **{name}** · {installation.schedule_name(schedule) or schedule}")
+        for (start, preset_id, mode, change), days in sorted(slots.items(), key=lambda item: item[0][0]):
+            before = ", ".join(x for x in (preset(preset_id) if preset_id else None,
+                                           texts["hvac_modes"].get(mode, mode) if mode else None) if x)
+            after = texts["removed"] if change == "removed" else preset(preset_id)
+            lines.append(f"  - {days_text(days, texts['days'])} · {start} · {before} → {after}")
+    return "\n".join(lines)

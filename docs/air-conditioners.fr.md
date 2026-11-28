@@ -34,7 +34,8 @@ qui chauffent ou climatisent prennent ce mode HVAC. Les autres créneaux ne chan
 exemple un créneau *Éteint*. Touchez *Enregistrer* pour garder le changement.
 
 **Les couleurs.** Pour changer la couleur en clim d'un préréglage, ouvrez l'onglet
-*Préréglages*.
+*Préréglages*. La couleur en clim y figure tant que Chauffage contrôle le mode HVAC d'un
+climatiseur.
 
 **L'été et l'hiver.** Créez un planning *Été* en copiant votre planning *Hiver*, et passez ses
 créneaux en *Clim*. Pour changer de saison, activez l'autre planning. Vous pouvez l'activer à la
@@ -44,6 +45,11 @@ main, depuis une automatisation, ou avec une [règle d'activation](activation-ru
 créneau qui chauffe. Ce changement est une [dérogation](overrides.fr.md). La climatisation garde
 sa propre consigne. Pour climatiser sur le préréglage du créneau, touchez plutôt *Clim* sur la
 carte. La climatisation prend alors la température du préréglage en clim.
+
+**Choisir le mode HVAC vous-même.** Si vous préférez passer vous-même du chauffage à la clim,
+désactivez le réglage *Contrôler le mode HVAC*. Les créneaux ne choisissent alors plus de mode
+HVAC, et le préréglage d'un créneau donne sa température pour le mode HVAC que vous avez choisi.
+Voir [Allumer et éteindre les pièces vous-même](overrides.fr.md#allumer-et-éteindre-les-pièces-vous-même).
 
 ## Ventilation, déshumidification et auto
 

@@ -73,8 +73,9 @@ class Target(Mapping[str, Any]):
         in fan only or dry, while the target holds a setpoint (fan only and dry take none). A
         target without a setpoint turns nothing on: the slot of a preset that has no value on
         this thermostat has nothing to send. Not when the thermostat has no HVAC mode to be
-        turned on in, nor when its state is not known yet."""
-        if thermostat is None or not self.has_setpoint:
+        turned on in, nor when its state is not known yet, nor when Chauffage does not control
+        its HVAC mode (#159)."""
+        if thermostat is None or not thermostat.hvac_control or not self.has_setpoint:
             return False
         return thermostat.state in IDLE and on_mode(thermostat, planned) not in (None, thermostat.state)
 
@@ -103,7 +104,10 @@ class Target(Mapping[str, Any]):
 
     def hvac_satisfied_by(self, thermostat: Thermostat) -> bool:
         """The thermostat is in the target's HVAC mode, or on when the target gives none: not off,
-        and not in fan only or dry when the target holds a setpoint."""
+        and not in fan only or dry when the target holds a setpoint. Any HVAC mode when Chauffage
+        does not control it (#159)."""
+        if not thermostat.hvac_control:
+            return True
         if "hvac_mode" in self:
             return self["hvac_mode"] == thermostat.state
         return thermostat.state != OFF and not self.needs_turning_on(thermostat)

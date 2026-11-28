@@ -13,7 +13,7 @@ import { OverrideDraft } from '../state/override-draft.ts';
 import { airSettings, clone, DAY_MIN, errorText, hasNoPreset, HVAC_ORDER, ICON_COPY, ICON_OPEN, ICON_PASTE, ICON_ZOOM, NO_PRESET_MODES, noPresetSlot, pct, pieceSettings, sameSlot, SETTING_ATTRS, slotMode, slotOf, slotSettings, thermostatName, todayIdx, withSettings } from '../common.ts';
 import { causeText, endMovedBy, endOfField, linksByKeyboard, listenTimeFields, timeFieldDone } from '../fields.ts';
 import { SETPOINT_MARGIN, curveValue, rowsOfStates } from '../history.ts';
-import { MODE_LABELS, SETTING_LABELS, dayOn, hvacIconTemplate, hvacModesOf, parseDecimal, presetModes, rowsOfDays, settingOptionsOf, slotModeOn, slotModesOf, slotOn } from '../hvac.ts';
+import { MODE_LABELS, SETTING_LABELS, controlsHvac, dayOn, hvacIconTemplate, hvacModesOf, parseDecimal, presetModes, rowsOfDays, settingOptionsOf, slotModeOn, slotModesOf, slotOn } from '../hvac.ts';
 import { makeLocale } from '../i18n/locale.ts';
 import { LINK_TOKEN, inRowActions, navigate, openDevice, openMoreInfo, panelPath, panelTitle, withLink } from '../links.ts';
 import { RESUME, focusedField, overrideWithTemperature, slotName, targetOf, withoutAir } from '../override-edit.ts';
@@ -1548,7 +1548,8 @@ export class ChauffageProgrammeCard extends LitElement {
     const out = [];
     for (const { cut: _, ...s } of segs) {
       const mode = slotMode(s);
-      if (hasNoPreset(s) && modes && !modes.includes(mode)) { left.add(MODE_LABELS[mode]); continue; }
+      // An HVAC mode the thermostat does not list, or any when Chauffage does not control it (#159)
+      if (hasNoPreset(s) && ((modes && !modes.includes(mode)) || !controlsHvac(this._hass, climate))) { left.add(MODE_LABELS[mode]); continue; }
       const settings = { ...(s.settings || {}) };
       for (const attr of SETTING_ATTRS) {
         if (attr in settings && !(options[attr] || []).includes(settings[attr])) { delete settings[attr]; left.add(SETTING_LABELS[attr]); }

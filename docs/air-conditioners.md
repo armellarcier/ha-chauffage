@@ -32,7 +32,8 @@ then tap *All heat* or *All cool*. The heating and cooling slots of the week tak
 mode. The other slots stay as they are, for example an *Off* slot. Tap *Save* to keep the
 change.
 
-**Colors.** To change the color of a preset when cooling, open the *Presets* tab.
+**Colors.** To change the color of a preset when cooling, open the *Presets* tab. The color when
+cooling is there while Chauffage controls the HVAC mode of an air conditioner.
 
 **Summer and winter.** Create a *Summer* schedule as a copy of your *Winter* schedule, and set
 its slots to *Cool*. To change season, activate the other schedule. You can activate it by hand,
@@ -42,6 +43,11 @@ from an automation, or with an [activation rule](activation-rules.md).
 heats. This change is an [override](overrides.md). The air conditioner keeps its own setpoint.
 To cool at the slot's preset, tap *Cool* on the card instead. The air conditioner then takes the
 preset's temperature when cooling.
+
+**Choose the HVAC mode yourself.** If you prefer to switch heat and cool yourself, turn off the
+setting *Control the HVAC mode*. The slots then choose no HVAC mode, and a slot's preset gives
+its temperature for the HVAC mode that you chose. See
+[Turn rooms on and off yourself](overrides.md#turn-rooms-on-and-off-yourself).
 
 ## Fan only, dry and auto
 

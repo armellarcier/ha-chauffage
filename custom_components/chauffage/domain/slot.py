@@ -24,7 +24,9 @@ def slot_hvac_mode(settings: Mapping[str, Any], thermostat: Thermostat | None) -
     may say one this thermostat does not list. A thermostat that only heats carries no HVAC
     mode: a heater with one HVAC mode never does, and a valve that also lists auto is left in
     the HVAC mode it has by a slot that says none. A thermostat whose HVAC modes are not known:
-    as stored."""
+    as stored. A thermostat whose HVAC mode Chauffage does not control (#159): none."""
+    if thermostat is not None and not thermostat.hvac_control:
+        return None
     mode = settings.get("hvac_mode")
     if mode in NO_PRESET_MODES or thermostat is None or not thermostat.hvac_modes:
         return mode

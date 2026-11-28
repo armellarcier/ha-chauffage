@@ -40,7 +40,6 @@ from .domain.slot import Slot, Week
 from .domain.target import RANGE_KEYS
 from .const import DOMAIN, HEAT_COOL, NO_PRESET_MODES, SETPOINT_MODES
 from .app.overrides import ThermostatFailed, ThermostatPaused
-from .thermostats.reader import read
 
 if TYPE_CHECKING:
     from .app.runtime import ChauffageRuntime
@@ -118,7 +117,10 @@ def refuse_contradictions(hass: HomeAssistant, runtime: ChauffageRuntime, data: 
         refuse("range_inverted")
     if mode == HEAT_COOL and "temperature" in data:
         refuse("heat_cool_takes_a_range")
-    current = read(hass, hass.states.get(entity_id))
+    # The setting Control the HVAC mode is off for this thermostat (#159)
+    if mode is not None and not runtime.controls_hvac_mode(entity_id):
+        refuse("hvac_mode_not_controlled")
+    current = runtime.gateway.read(hass.states.get(entity_id))
     listed = current.hvac_modes if current is not None else ()
     if mode is not None and listed and mode not in listed:
         refuse("hvac_mode_not_listed", hvac_mode=mode, hvac_modes=", ".join(listed))
@@ -175,7 +177,7 @@ def async_register(hass: HomeAssistant) -> None:
             target["hvac_mode"] = call.data["hvac_mode"]
         if target == {"hvac_mode": "off"} and minutes is None and end is None:
             # Off without an end: as a thermostat turned off by hand (the setting *Turned off*)
-            override = runtime.overrides.manual(entity_id, target, read(hass, hass.states.get(entity_id)))
+            override = runtime.overrides.manual(entity_id, target, runtime.gateway.read(hass.states.get(entity_id)))
         else:
             override = runtime.overrides.new(target, minutes, end)
         if preset_id:
@@ -217,7 +219,7 @@ def async_register(hass: HomeAssistant) -> None:
         for entity_id in call.data[ATTR_ENTITY_ID]:
             # The slots as they run on the thermostat: on an air conditioner, heat or cool
             week = Week.from_stored(runtime_for(hass, entity_id).installation.weeks[entity_id][schedule]).on(
-                read(hass, hass.states.get(entity_id))).to_stored()
+                runtime_for(hass, entity_id).gateway.read(hass.states.get(entity_id))).to_stored()
             response[entity_id] = {"schedule": schedule} | {
                 name: [{"start": slot[0], "end": next_start, "preset": slot[1], **Slot.from_stored(slot).settings}
                        for slot, next_start in zip(day, [s[0] for s in day[1:]] + ["24:00"])]

@@ -82,6 +82,17 @@ class Installation:
     def is_paused(self, entity_id: str) -> bool:
         return self.thermostats.get(entity_id, {}).get("paused", False)
 
+    def own_hvac_mode_control(self, entity_id: str) -> bool | None:
+        """A thermostat's own setting *Control the HVAC mode* (#159): None, it follows the house."""
+        return self.thermostats.get(entity_id, {}).get("hvac_mode_control")
+
+    def set_own_hvac_mode_control(self, entity_id: str, value: bool | None) -> None:
+        """None: the thermostat follows the house again."""
+        if value is None:
+            self.thermostats[entity_id].pop("hvac_mode_control", None)
+        else:
+            self.thermostats[entity_id]["hvac_mode_control"] = value
+
     @property
     def weeks(self) -> dict[str, dict[str, Any]]:
         """{thermostat: {schedule id: week}}, the thermostats' own dictionaries."""

@@ -20,7 +20,7 @@ from ..domain.manual_change import NoChange, Resume, classify
 from ..domain.plan import Realign
 from ..domain.thermostat import Thermostat, ignored
 from ..thermostats.gateway import describe, local_time
-from ..thermostats.reader import cause, read
+from ..thermostats.reader import cause
 
 if TYPE_CHECKING:
     from .runtime import ChauffageRuntime
@@ -65,7 +65,7 @@ class ManualChanges:
         if old is None or new is None or self._runtime.installation.is_paused(new.entity_id):
             return
         runtime = self._runtime
-        before, after = read(runtime.hass, old), read(runtime.hass, new)
+        before, after = runtime.gateway.read(old), runtime.gateway.read(new)
         runtime.gateway.forget_settings(new.entity_id, before, after, given_back=runtime.gateway.is_own(new.context))
         applied = runtime.gateway.applied(new.entity_id, before, after)
         if ignored(before) and not ignored(after):

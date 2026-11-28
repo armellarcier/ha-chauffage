@@ -1,7 +1,7 @@
 import { html, nothing } from 'lit';
 import { coolColor, presetColorIn } from '../../colors.ts';
 import { NO_PRESET_MODES, slotMode } from '../../common.ts';
-import { coolsOnly, hvacIconTemplate, hvacSlotStyle, listsMode, modeName, presetModes, slotModeOn } from '../../hvac.ts';
+import { controlsHvac, coolsOnly, hvacIconTemplate, hvacSlotStyle, listsMode, modeName, presetModes, slotModeOn } from '../../hvac.ts';
 import { panelPath } from '../../links.ts';
 import { coolPresetTemperatureOf, presetTemperatureOf } from '../../override-edit.ts';
 import type { ChauffageProgrammeCard } from '../../cards/programme-card.ts';
@@ -16,10 +16,11 @@ export function weekLegend(card: ChauffageProgrammeCard) {
   const multi = card._shown.length > 1;
   const focus = card._focusClimate();
   const st = hass.states[focus];
-  // Its heat color, then its cool color when a shown thermostat cools: each swatch then has
+  // Its heat color, then its cool color when a shown thermostat has cooling slots: one that cools
+  // and whose HVAC mode Chauffage controls (#159). Each swatch then has
   // its mark, a flame or a snowflake. No heat color when every thermostat shown only cools.
   // Then its values on the thermostat shown alone: "Comfort 20° · ❄ 24°"
-  const showsCool = card._shown.some((climate) => listsMode(hass, climate, 'cool'));
+  const showsCool = card._shown.some((climate) => listsMode(hass, climate, 'cool') && controlsHvac(hass, climate));
   const showsHeat = card._shown.some((c) => !coolsOnly(hass, c));
   const single = !multi && !!st;
   const presets = card._presets().map((l) => {

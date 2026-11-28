@@ -147,8 +147,13 @@ export const coolsOnly = (hass, climate) => {
   const { on } = hvacModesOf(hass, climate);
   return on.includes('cool') && !on.includes('heat');
 };
-// The whole week to heat or to cool (the week's menu): on a thermostat that lists both
-export const slotModesOf = (hass, climate) => (isReversible(hass, climate) ? ['heat', 'cool'] : []);
+// Whether Chauffage controls a thermostat's HVAC mode (#159): its own setting, else the house's,
+// on by default. Without control, its slots and its overrides choose no HVAC mode, and the card
+// offers none
+export const controlsHvac = (hass, climate) => dataSource(hass).controlsHvacMode(climate);
+// The whole week to heat or to cool (the week's menu): on a thermostat that lists both, and
+// whose HVAC mode Chauffage controls
+export const slotModesOf = (hass, climate) => (isReversible(hass, climate) && controlsHvac(hass, climate) ? ['heat', 'cool'] : []);
 export const listsMode = (hass, climate, mode) => hvacModesOf(hass, climate).on.includes(mode);
 // Whether a thermostat takes a range of temperatures (Home Assistant's TARGET_TEMPERATURE_RANGE):
 // heat/cool needs it
@@ -163,8 +168,9 @@ export const setpointModesOf = (hass, climate) => {
   return SETPOINT_MODES.filter((m) => (modes || []).includes(m) && (m !== 'heat_cool' || supportsRange(hass, climate)));
 };
 // The HVAC modes of the first row of a slot or of an override, in order: the ones the
-// thermostat lists
+// thermostat lists. None when Chauffage does not control its HVAC mode
 export const rowModesOf = (hass, climate) => {
+  if (!controlsHvac(hass, climate)) return [];
   const { modes } = hvacModesOf(hass, climate);
   const set = setpointModesOf(hass, climate);
   return HVAC_ORDER.filter((m) => (modes || []).includes(m) && (!SETPOINT_MODES.includes(m) || set.includes(m)));
@@ -177,8 +183,10 @@ export const hasModeRow = (hass, climate) => rowModesOf(hass, climate).filter((m
 // the thermostat can follow it. Otherwise, on a thermostat that cools, the slot heats, or cools
 // when the thermostat does not heat. A thermostat that only heats carries no HVAC mode, unless
 // the slot says heat and the thermostat lists another "on" HVAC mode. A thermostat whose HVAC
-// modes are not known (unavailable): as stored
+// modes are not known (unavailable): as stored. A thermostat whose HVAC mode Chauffage does not
+// control: none
 export function slotModeOn(hass, climate, seg) {
+  if (!controlsHvac(hass, climate)) return null;
   const mode = slotMode(seg);
   if (NO_PRESET_MODES.includes(mode)) return mode;
   const { modes, on } = hvacModesOf(hass, climate);

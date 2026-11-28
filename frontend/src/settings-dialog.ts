@@ -4,10 +4,11 @@ import { live } from 'lit/directives/live.js';
 import { dataSource } from './client/snapshot.ts';
 import { commands } from './client/commands.ts';
 import { client } from './client/chauffage-client.ts';
-import { OVERRIDE_DURATION_MAX, OVERRIDE_DURATION_MIN, OVERRIDE_DURATION_STEP, errorText, isAdmin } from './common.ts';
+import { OVERRIDE_DURATION_MAX, OVERRIDE_DURATION_MIN, OVERRIDE_DURATION_STEP, errorText, isAdmin, thermostatName } from './common.ts';
 import { MDI } from './editors.ts';
 import { durationField, linksByKeyboard, listenTimeFields, roundDurationText, timeFieldDone } from './fields.ts';
 import { FIELD_BOX } from './hvac.ts';
+import { HVAC_ASK_STYLE, chooseHvacControl, hvacAskTemplate, hvacChoiceOf } from './hvac-control.ts';
 import { makeLocale } from './i18n/locale.ts';
 import { afterHistoryBack, leaveMoreInfo, navigate } from './links.ts';
 import { TIME_FIELD_STYLE } from './styles.ts';
@@ -46,8 +47,9 @@ export const seenNewSetting = (hass) => {
 // (`show-dialog`) puts the dialog on top of the dialogs already open, the more-info dialog for
 // example, and gives it a history entry: Back closes it, and only it. Without Home Assistant's
 // frontend, the dialog opens by itself and takes its own history entry.
-// `section`: 'access' scrolls the dialog to the access level
-export function openSettings(from, hass, section = null) {
+// `section`: 'access' or 'hvac' scrolls the dialog to the access level or to Control the HVAC mode.
+// `thermostat`: the settings of this thermostat alone (#159), from the ⚙ of its page in the panel
+export function openSettings(from, hass, section = null, thermostat = null) {
   seenNewSetting(hass);
   // From the more-info block: leaving for a page closes the more-info dialog too
   const moreInfo = from.localName === 'chauffage-moreinfo';
@@ -55,13 +57,13 @@ export function openSettings(from, hass, section = null) {
     from.dispatchEvent(new CustomEvent('show-dialog', {
       bubbles: true,
       composed: true,
-      detail: { dialogTag: SETTINGS_DIALOG, dialogImport: () => Promise.resolve(), dialogParams: { moreInfo, section } },
+      detail: { dialogTag: SETTINGS_DIALOG, dialogImport: () => Promise.resolve(), dialogParams: { moreInfo, section, thermostat } },
     }));
     return;
   }
   const dialog: any = document.querySelector(SETTINGS_DIALOG) || document.body.appendChild(document.createElement(SETTINGS_DIALOG));
   dialog.hass = hass;
-  dialog.showDialog({ history: true, moreInfo, section });
+  dialog.showDialog({ history: true, moreInfo, section, thermostat });
 }
 
 // An event from inside the settings dialog: not a press outside a popover, nor its Escape
@@ -116,6 +118,10 @@ const SETTINGS_CSS = `
   .section-head { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; }
   .access-settings .saved { color:var(--success-color, #43a047); font-size:14px; }
   .off-end-title { margin:14px 0 4px; font-size:14px; font-weight:500; }
+  .override-settings { margin-top:16px; }
+  .hvac-settings h3 { margin:12px 0 4px; font-size:16px; font-weight:500; }
+  .hvac-settings .note { margin:4px 0 8px; font-size:13px; line-height:1.4; color:var(--secondary-text-color); }
+  ${HVAC_ASK_STYLE}
   /* The duration: a stepped field, the same as the end of an override */
   .duration-field { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; }
   input.time { ${FIELD_BOX} }
@@ -150,6 +156,12 @@ export class ChauffageSettingsDialog extends LitElement {
   _settingsPending: any;
   _settingsSaved = false;
   _settingsSent: Promise<unknown> | null = null;
+  // The setting Control the HVAC mode (#159): the question asked before it turns off (hvac-control.ts)
+  _hvacAsk: any = null;
+  _hvacBusy = false;
+  _hvacError: string | null = null;
+  // The settings of one thermostat (#159): its entity id, else the house's settings
+  _thermostat: string | null = null;
   _stopLeave: (() => void) | null = null;
   _unlisten: (() => void) | null = null;
   // Its own history entry (without Home Assistant's dialog manager): Back closes it
@@ -208,7 +220,11 @@ export class ChauffageSettingsDialog extends LitElement {
     this._moreInfo = !!(params && (params as any).moreInfo); // opened from the more-info block
     this._popped = false;
     // Opened from the notice of the access level: scrolled to its section, once filled (updated)
-    this._scrollTo = params && (params as any).section === 'access' ? '.access-settings' : null;
+    this._scrollTo = ({ access: '.access-settings', hvac: '.hvac-settings' } as any)[params && (params as any).section] || null;
+    this._thermostat = (params && (params as any).thermostat) || null;
+    this._hvacAsk = null;
+    this._hvacError = null;
+    this._hvacBusy = false;
     seenNewSetting(this.hass);
     this._unlisten = client.listen(() => this.requestUpdate());
     // Home Assistant's own dialog when the page has it, else the browser's. Home Assistant's
@@ -303,7 +319,7 @@ export class ChauffageSettingsDialog extends LitElement {
 
   _frameTemplate() {
     const t = this._t;
-    const title = t('settingsTitle');
+    const title = this._thermostat ? thermostatName(this.hass, this._thermostat) : t('settingsTitle');
     const close = html`<button class="close" data-close title=${t('close')} aria-label=${t('close')}>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d=${MDI.close}></path></svg></button>`;
     if (this._kind === 'wa') {
@@ -321,7 +337,9 @@ export class ChauffageSettingsDialog extends LitElement {
 
   _body() {
     const src = dataSource(this.hass);
-    return html`<div class="body">${this._overrideSettings(src)}${this._accessSettings(src)}${this._foot()}</div>`;
+    if (this._thermostat) return html`<div class="body">${this._hvacSettings(src)}</div>`;
+    // Control the HVAC mode first (the owner's decision, #159)
+    return html`<div class="body">${this._hvacSettings(src)}${this._overrideSettings(src)}${this._accessSettings(src)}${this._foot()}</div>`;
   }
 
   // The section *Overrides* (#83). The duration first, then the three ends of an override, each
@@ -377,6 +395,28 @@ export class ChauffageSettingsDialog extends LitElement {
     return html`<label for="override-duration">${loc.t('overrideDurationTitle')}</label>
       ${durationField({ id: 'override-duration', 'data-override-duration': true }, minutes, loc,
         { step: OVERRIDE_DURATION_STEP, min: OVERRIDE_DURATION_MIN, max: OVERRIDE_DURATION_MAX, disabled })}`;
+  }
+
+  // The section *Control the HVAC mode* (#159), of the house or of one thermostat, and the question asked
+  // before it turns off
+  _hvacSettings(src) {
+    const t = this._t;
+    const climate = this._thermostat;
+    // The house: on or off. A thermostat (#159): as the house, on or off
+    const values = { house: null, on: true, off: false };
+    const choices = climate
+      ? [['house', t('hvacControlHouse', { value: t(src.hvacModeControl() ? 'hvacControlHouseOn' : 'hvacControlHouseOff') })],
+        ['on', t('hvacControlThermostatOn')], ['off', t('hvacControlOff')]]
+      : [['on', t('hvacControlOn')], ['off', t('hvacControlOff')]];
+    const setting = hvacChoiceOf(this, climate ? src.ownHvacModeControl(climate) : src.hvacModeControl());
+    const current = setting === null ? 'house' : setting ? 'on' : 'off';
+    const disabled = !src.editable || this._hvacBusy || !!this._hvacAsk;
+    return html`<section class="hvac-settings"><h3>${t('hvacControlTitle')}</h3>
+        <div class="choices" role="radiogroup" aria-label=${t('hvacControlTitle')}>${choices.map(([value, label]) => html`<label class="choice">
+          <input type="radio" name="hvac-control" value=${value} data-hvac-control .checked=${live(value === current)} .disabled=${disabled}
+            @change=${() => chooseHvacControl(this, values[value], climate)}>
+          <span class="choice-label">${label}</span></label>`)}</div>
+        <p class="note">${t('hvacControlHelp')}</p>${hvacAskTemplate(this)}</section>`;
   }
 
   // The section *Access level* (#99): what users who are not admins may change. Admins only: a

@@ -8,7 +8,7 @@ import { SnapshotController } from './controllers/snapshot-controller.ts';
 import { errorText } from './common.ts';
 import { groupPreference, historyPreference, saveGroupPreference, saveHistoryPreference } from './state/preferences.ts';
 import { linksByKeyboard, roundDurationText } from './fields.ts';
-import { hvacIconTemplate, isReversible } from './hvac.ts';
+import { hvacIconTemplate, slotModesOf } from './hvac.ts';
 import { makeLocale } from './i18n/locale.ts';
 import { deviceNamedLink, navigate, openDevice, openMoreInfo, openPanel, panelName, panelPath, placements, placesTemplate, thermostatDevices } from './links.ts';
 import { DOC_OFF_BY_HAND, LS_NEW_ACCESS, LS_NEW_OFF, LS_NEW_SETTING, openSettings, seenNewOff, seenNewSetting } from './settings-dialog.ts';
@@ -105,12 +105,14 @@ const PANEL_CSS = `
   .next-head h2 { flex:1; margin:8px 0; }
   .next-steps ul { margin:4px 0; padding-left:20px; line-height:1.6; }
   .notice.new-off { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; }
-  .notice.new-off > span { flex:1 1 200px; }
+  .notice.new-off > span:first-child { flex:1 1 200px; }
+  .notice-btns { display:flex; flex-wrap:wrap; gap:8px; margin-left:auto; }
   .next-steps li > div { margin:4px 0 8px; }
   .crumbs { display:flex; align-items:baseline; gap:8px; min-width:0; }
-  .crumbs a { color:inherit; opacity:.8; text-decoration:none; }
+  .crumbs a { flex:0 1000 auto; min-width:1.5em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:inherit; opacity:.8; text-decoration:none; }
   .crumbs a:hover { opacity:1; text-decoration:underline; }
-  .crumbs span:last-child { overflow:hidden; text-overflow:ellipsis; }
+  .crumbs span:last-child { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .crumbs .sep { flex-shrink:0; }
   .sep { opacity:.6; }
   /* The header, aligned with the surface below: the tile top right, the rest on the left; on
      a phone, the tile first */
@@ -432,7 +434,7 @@ export class ChauffagePanel extends LitElement {
       return html`<div class="toolbar">${menu}
           <nav class="title crumbs"><a href="/chauffage/${built.list}" data-navigate="/chauffage/${built.list}">${t(list[1])}</a>
             <span class="sep">›</span><span data-fill="crumb">${page.notice ? nothing : route.sheet === 'schedule' ? src.scheduleName(route.id) : this._name(route.id)}</span></nav>
-          ${src.editable && !page.notice ? html`<button class="page-more" data-page-menu title=${t('moreActions')} aria-label=${t('moreActions')}>⋮</button>` : nothing}
+          ${src.editable && !page.notice ? html`${route.sheet === 'thermostat' ? html`<button class="page-more" data-thermostat-settings title=${t('pageSettings')} aria-label=${t('pageSettings')}><ha-icon icon="mdi:cog"></ha-icon></button>` : nothing}<button class="page-more" data-page-menu title=${t('moreActions')} aria-label=${t('moreActions')}>⋮</button>` : nothing}
           <div data-fill="page-menu">${this._pageMenuTemplate(route)}</div>
         </div>`;
     }
@@ -510,9 +512,13 @@ export class ChauffagePanel extends LitElement {
     }
     // An existing user never sees the next steps: the new off behavior (#91) and the new
     // setting (#83, the access level for an admin, #99) are told once each
-    return html`${notice ? html`<div class="notice new-off"><span>${t('newOffNotice')}
+    // The new off notice names the setting that keeps a thermostat off (#159), and opens it for who
+    // may change the settings
+    const [before, after] = t('newOffNotice', { setting: '\u0001' }).split('\u0001');
+    return html`${notice ? html`<div class="notice new-off"><span>${before}<em>${t('hvacControlTitle')}</em>${after}
             <a href=${DOC_OFF_BY_HAND[makeLocale(this.hass).lang] || DOC_OFF_BY_HAND.en} target="_blank" rel="noopener">${t('readMore')}</a></span>
-            <button class="btn" data-close-notice>${t('nextClose')}</button></div>` : nothing}${
+            <span class="notice-btns">${src.editable ? html`<button class="btn" data-open-settings="hvac">${t('pageSettings')}</button>` : nothing}
+            <button class="btn" data-close-notice>${t('nextClose')}</button></span></div>` : nothing}${
       setting ? html`<div class="notice new-setting"><span>${t(src.admin ? 'newAccessNotice' : 'newSettingNotice')}
             <a href=${panelPath('settings')} data-open-settings=${src.admin ? 'access' : ''}>${t('pageSettings')}</a></span>
             <button class="btn" data-close-new-setting>${t('nextClose')}</button></div>` : nothing}`;
@@ -523,7 +529,7 @@ export class ChauffagePanel extends LitElement {
   // every slot of the week to heat or to cool
   _weekHeading(id, route, src) {
     const t = this._t;
-    const reversible = route.sheet === 'thermostat' && isReversible(this.hass, route.id) && src.plannable;
+    const reversible = route.sheet === 'thermostat' && slotModesOf(this.hass, route.id).length > 0 && src.plannable;
     const others = src.schedules().filter((m) => m !== id);
     const all = (mode, key) => html`<button class="mi" data-week-hvac=${mode}>${hvacIconTemplate(mode)}<span>${t(key)}</span></button>`;
     const items = [
@@ -667,7 +673,7 @@ export class ChauffagePanel extends LitElement {
       this.requestUpdate();
       return undefined;
     }
-    const el = e.target.closest('[data-page-menu], [data-forget], [data-forget-confirm], [data-forget-cancel], [data-leave-stay], [data-leave-discard], [data-leave-save], [data-sheet-save], [data-sheet-cancel], [data-copy-menu], [data-copy-to], [data-week-hvac], [data-more-info], [data-navigate], [data-device], [data-pause], [data-group-days], [data-history], [data-start], [data-close-next], [data-close-notice], [data-close-new-setting], [data-open-settings]');
+    const el = e.target.closest('[data-page-menu], [data-forget], [data-forget-confirm], [data-forget-cancel], [data-leave-stay], [data-leave-discard], [data-leave-save], [data-sheet-save], [data-sheet-cancel], [data-copy-menu], [data-copy-to], [data-week-hvac], [data-more-info], [data-navigate], [data-device], [data-pause], [data-group-days], [data-history], [data-start], [data-close-next], [data-close-notice], [data-close-new-setting], [data-open-settings], [data-thermostat-settings]');
     if (!el || !this.renderRoot.contains(el)) return undefined;
     e.preventDefault();
     const ds = el.dataset;
@@ -732,6 +738,11 @@ export class ChauffagePanel extends LitElement {
         const to = weekCards[ds.copyTo];
         this._copyMenu = null;
         if (from && to) to.receiveWeek(route.id, from.week(route.id), src.scheduleName(fromId));
+        return undefined;
+      }
+      // A thermostat's settings (#159), from the ⚙ of its page
+      if ('thermostatSettings' in ds) {
+        openSettings(this, this.hass, null, route.id);
         return undefined;
       }
       // The settings, on top of the panel: the notice of the new setting is then told

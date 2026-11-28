@@ -3,6 +3,8 @@ Thermostat), else learned while the thermostat was on them."""
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from homeassistant.core import HomeAssistant, State, callback
 
 from ..const import DRY, FAN_ONLY, HEAT_COOL
@@ -12,9 +14,14 @@ from ..thermostats.reader import cause, read
 
 
 class Learner:
-    def __init__(self, hass: HomeAssistant, installation: Installation) -> None:
+    """`controls_hvac_mode`: whether Chauffage controls a thermostat's HVAC mode (#159): a
+    thermostat it leaves alone while off teaches nothing then."""
+
+    def __init__(self, hass: HomeAssistant, installation: Installation,
+                 controls_hvac_mode: Callable[[str], bool]) -> None:
         self._hass = hass
         self._installation = installation
+        self._controls_hvac_mode = controls_hvac_mode
 
     def _learned(self, entity_id: str, cool: bool = False) -> dict[str, float]:
         """{own preset: temperature} learned from a thermostat. `cool`: while it cooled."""
@@ -41,7 +48,7 @@ class Learner:
         """While a thermostat is on a preset, its setpoint is that preset's temperature: its
         cooling temperature while it cools, kept apart. In heat/cool, in dry and in fan only, the
         setpoint shown is not a preset's temperature: nothing is learned."""
-        current = read(self._hass, state)
+        current = read(self._hass, state, self._controls_hvac_mode(state.entity_id)) if state is not None else None
         thermostats = self._installation.thermostats
         if current is None or ignored(current) or state.entity_id not in thermostats:
             return False

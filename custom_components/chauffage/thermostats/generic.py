@@ -29,6 +29,8 @@ class GenericReader:
 
     # Whether the thermostat goes to its manual preset by itself when it gets a setpoint
     leaves_preset_itself = False
+    # Whether the thermostat keeps the setpoint asked while off, and starts again on it
+    keeps_setpoint_while_off = False
 
     def asked(self, attributes: Mapping[str, Any]) -> tuple[str | None, str | None, float | None]:
         """The HVAC mode, the preset and the setpoint the thermostat was asked for. The HVAC mode
@@ -42,8 +44,9 @@ class GenericReader:
         started. A command sent then would be a temperature instead of its preset (#93)."""
         return any(attributes.get(key) is not None for key in (*SETPOINTS, "preset_mode"))
 
-    def read(self, state: State) -> Thermostat:
-        """What the scheduler needs to know about the thermostat."""
+    def read(self, state: State, hvac_control: bool = True) -> Thermostat:
+        """What the scheduler needs to know about the thermostat. `hvac_control`: whether
+        Chauffage controls its HVAC mode (#159)."""
         attributes = state.attributes
         hvac_mode, preset, temperature = self.asked(attributes)
         return Thermostat(
@@ -63,6 +66,8 @@ class GenericReader:
             supports_range=bool(int(attributes.get("supported_features") or 0)
                                 & ClimateEntityFeature.TARGET_TEMPERATURE_RANGE),
             **{key: temperature_value(attributes.get(key)) for key in RANGE_KEYS},
+            hvac_control=hvac_control,
+            keeps_setpoint_while_off=self.keeps_setpoint_while_off,
         )
 
     def cause(self, state: State) -> str | None:

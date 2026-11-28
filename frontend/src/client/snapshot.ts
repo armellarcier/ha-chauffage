@@ -71,6 +71,11 @@ export function makeSnapshot(hass, raw, available: boolean) {
     const entity = d && d.schedule_entities && d.schedule_entities[id];
     return (entity && hass.entities && hass.entities[entity] && hass.entities[entity].icon) || null;
   };
+  // A thermostat's own setting Control the HVAC mode (#159): true, false, or null (it follows the house)
+  const ownHvacModeControl = (climate) => {
+    const own = d && d.thermostats && d.thermostats[climate] && d.thermostats[climate].hvac_mode_control;
+    return typeof own === 'boolean' ? own : null;
+  };
   return {
     available, // false: the integration is not set up
     outdated, // true: Home Assistant must be restarted to finish an update
@@ -100,6 +105,11 @@ export function makeSnapshot(hass, raw, available: boolean) {
     cause: (climate) => (d && d.thermostats && d.thermostats[climate] && d.thermostats[climate].cause) || null,
     // The fan and the vanes the thermostat gets back from a slot or an override that sets none
     ownSettings: (climate) => (d && d.thermostats && d.thermostats[climate] && d.thermostats[climate].own_settings) || {},
+    // The setting Control the HVAC mode (#159): the house's (on by default), a thermostat's own
+    // (true, false, or null: it follows the house), and whether Chauffage controls a thermostat's
+    hvacModeControl: () => !d || d.hvac_mode_control !== false,
+    ownHvacModeControl,
+    controlsHvacMode: (climate) => ownHvacModeControl(climate) ?? (!d || d.hvac_mode_control !== false),
     scheduled: () => Object.keys((d && d.thermostats) || {}),
     renamed: () => (d && d.renamed) || {},
     // Saves against the revision of each thermostat sent (null: not scheduled when loaded)

@@ -55,8 +55,8 @@ class ChauffageRuntime:
 
         self.installation = Installation(store, data)
         self.settings = Settings(hass, entry)
-        self.gateway = ThermostatGateway(hass, self.installation)
-        self.learner = Learner(hass, self.installation)
+        self.gateway = ThermostatGateway(hass, self.installation, self.controls_hvac_mode)
+        self.learner = Learner(hass, self.installation, self.controls_hvac_mode)
         self.history = TemperatureHistory(hass)  # measured temperature, for the card
         self.overrides = OverrideService(self)
         self.manual_changes = ManualChanges(self)
@@ -66,6 +66,12 @@ class ChauffageRuntime:
         self.registry = ThermostatRegistry(self)
         self.read_model = SnapshotBuilder(self)
         self._unsubs: list[Callable[[], None]] = []
+
+    def controls_hvac_mode(self, entity_id: str) -> bool:
+        """Whether Chauffage controls a thermostat's HVAC mode (#159): its own setting, else the
+        house's. The gateway and the learner read the thermostats with it."""
+        own = self.installation.own_hvac_mode_control(entity_id)
+        return self.settings.hvac_mode_control if own is None else own
 
     async def async_start(self) -> None:
         self.scheduler.start()

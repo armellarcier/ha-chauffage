@@ -28,7 +28,7 @@ from ..const import (
     thermostat_unique_id,
 )
 from ..storage import schema
-from ..thermostats.reader import cause, read
+from ..thermostats.reader import cause
 
 if TYPE_CHECKING:
     from .runtime import ChauffageRuntime
@@ -54,7 +54,7 @@ class SnapshotBuilder:
         preset keeps the thermostat's own."""
         presets = self._runtime.installation.presets_by_id
         mapping = self._runtime.installation.thermostats.get(entity_id, {}).get("mapping") or None
-        current = read(self._runtime.hass, self._runtime.hass.states.get(entity_id))
+        current = self._runtime.gateway.read(self._runtime.hass.states.get(entity_id))
         out = {}
         for preset_id in presets:
             target = target_of(preset_id, presets, mapping, current, self._runtime.settings.use_presets)
@@ -66,7 +66,7 @@ class SnapshotBuilder:
         """What a preset is worth on a thermostat, for each HVAC mode: a preset and a value set by
         hand that the card holds, saved or not (chauffage/preset/preview). The card asks rather than computing it (#132)."""
         worth = schema.preset(preset, set()).value_on(
-            None if value is None else schema.value(value), read(self._runtime.hass, self._runtime.hass.states.get(entity_id)),
+            None if value is None else schema.value(value), self._runtime.gateway.read(self._runtime.hass.states.get(entity_id)),
             self._runtime.settings.use_presets)
         return {"value": worth.attributes()}
 
@@ -90,9 +90,12 @@ class SnapshotBuilder:
             # cause: why a VTherm protects itself ("window", "auto_start_stop"), None otherwise: the
             # card then does not read VTherm's attributes
             # own_settings: the fan and the vanes it gets back from a slot that sets none
+            # hvac_mode_control: its own setting (None: it follows the house, #159)
             "thermostats": {e: {"paused": t["paused"], "revision": t["revision"], "cause": cause(hass, hass.states.get(e)),
-                                "own_settings": self._runtime.gateway.own_settings(e)}
+                                "own_settings": self._runtime.gateway.own_settings(e),
+                                "hvac_mode_control": self._runtime.installation.own_hvac_mode_control(e)}
                             for e, t in self._runtime.installation.scheduled.items()},
+            "hvac_mode_control": self._runtime.settings.hvac_mode_control,
             "mappings": self._runtime.installation.mappings,
             "targets": {e: self.targets_of(e) for e in self._runtime.installation.scheduled},
             "weeks": self._runtime.installation.weeks,
@@ -170,7 +173,7 @@ class SnapshotBuilder:
         week = self._runtime.installation.thermostats.get(entity_id, {}).get("weeks", {}).get(self._runtime.installation.active_schedule)
         if not week:
             return None, None, None
-        thermostat = thermostat or read(self._runtime.hass, self._runtime.hass.states.get(entity_id))
+        thermostat = thermostat or self._runtime.gateway.read(self._runtime.hass.states.get(entity_id))
         return current_and_next(Week.from_stored(week).on(thermostat).to_stored(), now or dt_util.now())
 
     def planned_targets(self, entity_id: str, plan: Plan | None = None, now: datetime | None = None,
@@ -182,7 +185,7 @@ class SnapshotBuilder:
         preset. `plan`: the one built for a snapshot, else built here. `thermostat`: the thermostat
         as read by the caller, else read here."""
         plan = plan or self._runtime.scheduler.plan()
-        thermostat = thermostat or read(self._runtime.hass, self._runtime.hass.states.get(entity_id))
+        thermostat = thermostat or self._runtime.gateway.read(self._runtime.hass.states.get(entity_id))
         current, following, next_start = self.planned(entity_id, now, thermostat)
         target = plan.target_of(entity_id, current, thermostat)
         next_target = plan.target_of(entity_id, following, thermostat)
@@ -200,7 +203,7 @@ class SnapshotBuilder:
         change made now would end at (*Until the next slot*) and the next morning (*Until
         tomorrow*), computed here, in Home Assistant's time zone, not in the browser's."""
         plan, now = plan or self._runtime.scheduler.plan(), now or dt_util.now()
-        thermostat = read(self._runtime.hass, self._runtime.hass.states.get(entity_id))
+        thermostat = self._runtime.gateway.read(self._runtime.hass.states.get(entity_id))
         slot = self._runtime.overrides.next_slot_end(entity_id, thermostat, plan, now)
         tomorrow = self.next_day_slot_end(entity_id, thermostat, plan, now)
         return {
@@ -216,7 +219,7 @@ class SnapshotBuilder:
         own preset, its temperature (None when unknown), its range in heat/cool. `start` is None
         when no slot ever changes the thermostat."""
         plan, now = self._runtime.scheduler.plan(), now or dt_util.now()
-        thermostat = read(self._runtime.hass, self._runtime.hass.states.get(entity_id))
+        thermostat = self._runtime.gateway.read(self._runtime.hass.states.get(entity_id))
         override = self._runtime.installation.overrides.get(entity_id)
         if override:
             start = parse_datetime(override.get("end"))

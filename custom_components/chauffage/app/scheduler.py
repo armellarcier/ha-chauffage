@@ -16,7 +16,6 @@ from homeassistant.util import dt as dt_util
 from ..domain.plan import ApplyReason, Plan, Realign, Tick, due_targets, ended_overrides, why_of
 from ..domain.target import Target
 from ..domain.thermostat import Thermostat, ignored
-from ..thermostats.reader import read
 
 if TYPE_CHECKING:
     from .runtime import ChauffageRuntime
@@ -68,7 +67,7 @@ class Scheduler:
         async with self.lock:
             now, retry = dt_util.now(), set(self.retry)
             plan = self.plan()
-            states = {e: t for e in installation.active if (t := read(runtime.hass, runtime.hass.states.get(e)))}
+            states = {e: t for e in installation.active if (t := runtime.gateway.read(runtime.hass.states.get(e)))}
             todo = due_targets(plan, now, states, reason, retry=frozenset(retry), pending=runtime.gateway.last_pending())
             # A thermostat to retry that needs nothing anymore (already right, override, off…)
             self.retry &= {entity_id for entity_id, _ in todo}
@@ -111,7 +110,7 @@ class Scheduler:
             await self.apply(Realign(frozenset({entity_id}), why))
             return
         async with self.lock:
-            current = read(runtime.hass, runtime.hass.states.get(entity_id))
+            current = runtime.gateway.read(runtime.hass.states.get(entity_id))
             if current is None or ignored(current):
                 return
             to_send = self.needs(entity_id, override["target"], current, by_user=not override.get("preset"))

@@ -163,8 +163,9 @@ Les trois événements des dérogations portent `entity_id`, `start` et `end`.
   `service`.
 
 `chauffage_override_ended` porte aussi `reason`, par exemple `expired`, `thermostat` (remis sur
-son planning à la main) ou `card`. Les autres raisons sont `panel`, `service`, `paused` et
-`forgotten`.
+son planning à la main) ou `card`. Les autres raisons sont `panel`, `service`, `paused`,
+`forgotten` et `hvac_mode_not_controlled`. Cette dernière arrête une dérogation d'arrêt quand
+Chauffage ne contrôle plus le mode HVAC.
 
 Quand Chauffage a choisi la fin de la dérogation, `ends_at` indique la règle qui l'a choisie :
 `duration`, `next_slot` ou `no_next_slot`. Par exemple, un changement à la main qui dure jusqu'au

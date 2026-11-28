@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 from collections import deque
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import datetime
 import logging
 from typing import Any
@@ -44,12 +44,20 @@ def local_time(iso: str) -> str:
 
 class ThermostatGateway:
     """`installation`: the stored data (storage/schema.py), for its "pending" commands and each
-    thermostat's "own_settings"."""
+    thermostat's "own_settings". `controls_hvac_mode`: whether Chauffage controls a thermostat's
+    HVAC mode (#159, ChauffageRuntime.controls_hvac_mode)."""
 
-    def __init__(self, hass: HomeAssistant, installation: Installation) -> None:
+    def __init__(self, hass: HomeAssistant, installation: Installation,
+                 controls_hvac_mode: Callable[[str], bool]) -> None:
         self.hass = hass
         self._installation = installation
+        self._controls_hvac_mode = controls_hvac_mode
         self._own_contexts: deque[str] = deque(maxlen=500)
+
+    def read(self, state: State | None) -> Thermostat | None:
+        """What the scheduler needs to know about a thermostat, and whether Chauffage controls its
+        HVAC mode (#159)."""
+        return read(self.hass, state, self._controls_hvac_mode(state.entity_id)) if state is not None else None
 
     def is_own(self, context: Context) -> bool:
         """A state change Chauffage caused: not a change by hand."""
@@ -89,7 +97,7 @@ class ThermostatGateway:
         # Not what the thermostat already shows, unless it may still apply an older command:
         # then everything, or what it shows now could be undone later
         state = self.hass.states.get(entity_id)
-        actual = read(self.hass, state)
+        actual = self.read(state)
         current = None if commands else actual
         shown = current is not None and Target(target).satisfied_by(current)
         # A thermostat that keeps its preset when it gets a setpoint leaves the preset first

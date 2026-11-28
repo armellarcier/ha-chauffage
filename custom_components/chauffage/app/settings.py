@@ -11,11 +11,13 @@ from homeassistant.core import HomeAssistant, callback
 from ..const import (
     ACCESS_LEVELS,
     CONF_ACCESS_LEVEL,
+    CONF_HVAC_MODE_CONTROL,
     CONF_MANUAL_OVERRIDE_END,
     CONF_OFF_OVERRIDE_END,
     CONF_OVERRIDE_DURATION,
     CONF_USE_PRESETS,
     DEFAULT_ACCESS_LEVEL,
+    DEFAULT_HVAC_MODE_CONTROL,
     DEFAULT_MANUAL_OVERRIDE_END,
     DEFAULT_OFF_OVERRIDE_END,
     DEFAULT_OVERRIDE_DURATION,
@@ -54,6 +56,17 @@ class Settings:
     @property
     def use_presets(self) -> bool:
         return bool(self._entry.options.get(CONF_USE_PRESETS, DEFAULT_USE_PRESETS))
+
+    @property
+    def hvac_mode_control(self) -> bool:
+        """The setting *Control the HVAC mode* of the house (#159): on by default."""
+        return bool(self._entry.options.get(CONF_HVAC_MODE_CONTROL, DEFAULT_HVAC_MODE_CONTROL))
+
+    @callback
+    def set_hvac_mode_control(self, value: bool) -> None:
+        """Sets *Control the HVAC mode* for the house. Converts nothing: see
+        Schedules.set_hvac_mode_control."""
+        self._update({CONF_HVAC_MODE_CONTROL: value})
 
     @property
     def access_level(self) -> str:

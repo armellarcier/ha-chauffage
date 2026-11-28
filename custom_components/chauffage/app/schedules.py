@@ -56,6 +56,12 @@ class Schedules:
                 current = scheduled.get(entity_id, {}).get("revision")
                 if revisions.get(entity_id) != current:
                     raise StaleRevision
+        # A thermostat whose HVAC mode Chauffage does not control: its slots choose none (#159)
+        for entity_id, by_schedule in normalized.items():
+            if not runtime.controls_hvac_mode(entity_id) and any(
+                    len(slot) > 2 and "hvac_mode" in slot[2]
+                    for week in by_schedule.values() for day in week for slot in day):
+                raise InvalidData(f"{entity_id}: Chauffage does not control its HVAC mode")
         schedule_ids = [schedule["id"] for schedule in installation.schedules]
         preset_ids = list(installation.presets_by_id)
         for entity_id, by_schedule in normalized.items():
@@ -124,7 +130,7 @@ class Schedules:
                 continue
             for entity_id, by_schedule in installation.weeks.items():
                 cell = installation.mappings.get(entity_id, {}).get(preset["id"]) or {}
-                current = read(self._runtime.hass, self._runtime.hass.states.get(entity_id))
+                current = self._runtime.gateway.read(self._runtime.hass.states.get(entity_id))
                 modes = {slot_hvac_mode(Slot.from_stored(slot).settings, current) or "heat"
                          for week in by_schedule.values() for day in week for slot in day if slot[1] == preset["id"]}
                 # A heat/cool slot sends two numbers: a device preset set by hand gives none
@@ -143,6 +149,76 @@ class Schedules:
             installation.thermostats.pop(entity_id, None)  # not scheduled: nothing left to keep
         installation.changed()
         await self._runtime.scheduler.apply(Forced(f"mapping of {entity_id} changed"))
+
+    def hvac_mode_changes(self, value: bool | None, entity_id: str | None = None) -> tuple[list[str], list[dict[str, Any]]]:
+        """What setting *Control the HVAC mode* to `value` changes, for the house (`entity_id`
+        None) or one thermostat (None: it follows the house): the scheduled thermostats that
+        lose the control, and the slots that change in their weeks, in every schedule. A slot
+        without a preset is removed ("removed"); a slot that runs in an HVAC mode on the
+        thermostat loses it ("hvac_mode_removed")."""
+        runtime = self._runtime
+        installation = runtime.installation
+        house = value if entity_id is None else runtime.settings.hvac_mode_control
+        losing = []
+        for e in installation.scheduled:
+            if entity_id is not None and e != entity_id:
+                continue
+            own = value if e == entity_id else installation.own_hvac_mode_control(e)
+            if runtime.controls_hvac_mode(e) and not (house if own is None else own):
+                losing.append(e)
+        changes = []
+        for e in losing:
+            current = read(runtime.hass, runtime.hass.states.get(e))  # as it runs with the control
+            for schedule in installation.schedules:
+                for day, slots in enumerate(installation.scheduled[e]["weeks"].get(schedule["id"]) or []):
+                    for raw in slots:
+                        slot_settings = Slot.from_stored(raw).settings
+                        mode = slot_settings.get("hvac_mode") if raw[1] is None else slot_hvac_mode(slot_settings, current)
+                        if mode is None and raw[1] is not None:
+                            continue
+                        changes.append({"entity_id": e, "schedule": schedule["id"], "day": day, "start": raw[0],
+                                        "preset": raw[1], "hvac_mode": mode,
+                                        "change": "removed" if raw[1] is None else "hvac_mode_removed"})
+        return losing, changes
+
+    async def set_hvac_mode_control(self, value: bool | None, entity_id: str | None = None,
+                                    preview: bool = False) -> list[dict[str, Any]]:
+        """Sets *Control the HVAC mode* for the house (`entity_id` None) or one thermostat (None:
+        it follows the house), from the panel (#159). The thermostats that lose the control get
+        their weeks converted (schema.without_hvac_modes) and their override without an HVAC
+        mode: an off override, left with nothing, ends. `preview`: only says which slots change
+        (hvac_mode_changes). Turning the control on converts nothing."""
+        runtime = self._runtime
+        installation = runtime.installation
+        if entity_id is None and value is None:
+            raise InvalidData("the house controls the HVAC mode or not")
+        if entity_id is not None and entity_id not in installation.scheduled:
+            raise InvalidData(f"not scheduled: {entity_id}")
+        losing, changes = self.hvac_mode_changes(value, entity_id)
+        if preview:
+            return changes
+        preset_ids = list(installation.presets_by_id)
+        for e in losing:
+            weeks = installation.thermostats[e]["weeks"]
+            for schedule_id, week in weeks.items():
+                weeks[schedule_id] = schema.without_hvac_modes(week, preset_ids)
+            override = installation.overrides.get(e)
+            if override is not None and "hvac_mode" in override["target"]:
+                target = {key: v for key, v in override["target"].items() if key != "hvac_mode"}
+                if target:
+                    runtime.overrides.keep(e, {**override, "target": target}, "panel")
+                else:
+                    runtime.overrides.drop(e, "hvac_mode_not_controlled")
+        if losing:
+            installation.weeks_changed(losing)
+            installation.revision += 1
+        if entity_id is None:
+            runtime.settings.set_hvac_mode_control(value)
+        else:
+            installation.set_own_hvac_mode_control(entity_id, value)
+        installation.changed()
+        await runtime.scheduler.apply(Forced("HVAC mode control changed"))
+        return changes
 
     async def set_schedules(self, items: Any, revision: int | None = None) -> list[dict[str, str]]:
         """Create (empty or a copy), rename, move and delete schedules (see schema.plan_schedules).

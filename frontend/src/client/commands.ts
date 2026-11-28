@@ -31,5 +31,9 @@ export function commands(hass) {
     setMapping: (climate, mapping) => call({ type: 'chauffage/mapping/set', entity_id: climate, mapping }),
     setPresets: (presets, replacements) => call({ type: 'chauffage/presets/set', presets, replacements }),
     setRules: (rules, defaultSchedule) => call({ type: 'chauffage/rules/set', rules, default_schedule: defaultSchedule }),
+    // The setting Control the HVAC mode (#159), for the house (`climate` null) or one thermostat
+    // (`value` null: it follows the house). `preview`: only the slots that would change, { changes }
+    setHvacModeControl: (value, climate, preview = false) => call({ type: 'chauffage/hvac_mode_control/set', value,
+      ...(climate ? { entity_id: climate } : {}), ...(preview ? { preview: true } : {}) }),
   };
 }

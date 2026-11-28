@@ -3,7 +3,7 @@ import { keyed } from 'lit/directives/keyed.js';
 import { coolColor, derivedCoolColor } from '../../colors.ts';
 import { MANUAL_PRESETS, SETTING_ATTRS, errorText, hasNoPreset } from '../../common.ts';
 import { DismissController } from '../../controllers/dismiss-controller.ts';
-import { captureButton, captureState, coolsOnly, hvacIconTemplate, isReversible, listsMode, moreSettings, ownPresetName, parseDecimal, presetModes, slotModeOn } from '../../hvac.ts';
+import { captureButton, captureState, controlsHvac, coolsOnly, hvacIconTemplate, isReversible, listsMode, moreSettings, ownPresetName, parseDecimal, presetModes, slotModeOn } from '../../hvac.ts';
 import { deviceLink, deviceOf } from '../../links.ts';
 import { coolPresetTemperatureOf, presetTemperatureOf, presetValue, presetValueAnswered, targetOf } from '../../override-edit.ts';
 import { fitTemperature, presetsOf, sortedPresets, stepOf, stepper } from '../../presets.ts';
@@ -332,19 +332,22 @@ export class ChauffagePresetsView extends ChauffageView {
       return this._cellPopover(preset, body, html`<button class="btn" data-act="cell-delete-cancel" @click=${() => this._askDelete(false)}>${t('cancel')}</button>
         <button class="btn danger" data-act="cell-delete-confirm" @click=${() => this._applyCell(true)}>${t('deletePreset')}</button>`, title);
     }
-    // With an air conditioner: its color when heating and its color when cooling, each on a
-    // row with its label. Without one: its color, beside its name
+    // With an air conditioner: its temperature when heating and when cooling. Its color when
+    // heating and its color when cooling, each on a row with its label, only while a cooling slot
+    // can use it: an air conditioner whose HVAC mode Chauffage controls (#159). Otherwise its
+    // color, beside its name
     const cools = (this.thermostats || []).some((entity) => listsMode(this.hass, entity, 'cool'));
-    const color = html`<input type="color" data-cell-color value=${isNew ? '#9e9e9e' : preset.color} title=${t(cools ? 'presetHeatColor' : 'presetColor')}>`;
+    const coolSlots = (this.thermostats || []).some((entity) => listsMode(this.hass, entity, 'cool') && controlsHvac(this.hass, entity));
+    const color = html`<input type="color" data-cell-color value=${isNew ? '#9e9e9e' : preset.color} title=${t(coolSlots ? 'presetHeatColor' : 'presetColor')}>`;
     const body = html`<div class="pv-fields">
         <span>${t('presetName')}</span>
-        <span class="pv-name">${cools ? nothing : color}
+        <span class="pv-name">${coolSlots ? nothing : color}
           <input type="text" data-cell-name value=${isNew ? '' : preset.name} placeholder=${t('presetName')}></span>
         <span>${t(cools ? 'whenHeating' : 'presetDefaultTemperature')}</span>${tempInput(isNew ? 19 : preset.temperature, { 'data-cell-temp': true }, t(cools ? 'temperatureHeatAria' : 'presetTemperature'))}
         ${cools ? html`<span>${t('whenCooling')}</span>${tempInput(isNew ? null : preset.cool_temperature, { 'data-cell-cool': true }, t('temperatureCoolAria'))}
-        <span>${t('presetHeatColor')}</span><span class="pv-name">${color}</span>
+        ${coolSlots ? html`<span>${t('presetHeatColor')}</span><span class="pv-name">${color}</span>
         <span>${t('presetCoolColor')}</span>
-        <span class="pv-name"><input type="color" data-cell-cool-color ?data-chosen=${!!preset.cool_color} value=${coolColor(isNew ? { color: '#9e9e9e' } : preset)} title=${t('presetCoolColor')}></span>` : nothing}
+        <span class="pv-name"><input type="color" data-cell-cool-color ?data-chosen=${!!preset.cool_color} value=${coolColor(isNew ? { color: '#9e9e9e' } : preset)} title=${t('presetCoolColor')}></span>` : nothing}` : nothing}
       </div>
       <div class="muted">${t('defaultHelp')}</div>`;
     if (!isNew && presets.length > 1) {
