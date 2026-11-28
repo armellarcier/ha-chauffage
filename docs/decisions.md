@@ -553,7 +553,7 @@ future contributor might question.
   not only off.
   - **The setting *Control the HVAC mode* is on by default**, so nothing changes on upgrade. It
     is set for the house in the settings dialog of the panel, and each thermostat can follow the
-    house or say on or off, in its sheet of the panel.
+    house or say on or off.
   - **Off, the thermostat is scheduled as a thermostat with a single HVAC mode, as in 0.9.**
     Chauffage never sends it an HVAC mode. Its slots and its overrides choose no HVAC mode, and
     the card offers none. A change of HVAC mode by hand is never an override. A thermostat
@@ -576,6 +576,18 @@ future contributor might question.
     such a thermostat an HVAC mode.
   - **The panel holds the setting, not an entity.** A change from an entity or an automation
     could not show the user what the conversion changes.
+  - **The owner's decisions of 2026-11-28, after trying the setting:**
+    - **The notice of the new off behavior names the setting.** It says to turn off *Control the
+      HVAC mode* to keep a thermostat off, not to pause its control, and its *Settings* button
+      opens the settings dialog at that setting.
+    - **A thermostat's setting sits behind a ⚙ on its page of the panel**, not at the top of the
+      page: it is set almost once. The ⚙ opens a small dialog with the thermostat's setting (as
+      the house, on or off), and the same list of the slots that change before it turns off.
+    - **A preset keeps both temperatures**: an air conditioner without control still gets the
+      cooling temperature when it is switched to cool by hand. What only cooling slots use is
+      hidden when no air conditioner with control is in the card: the preset's color when
+      cooling, and the refusal to empty a cooling temperature that a slot uses (no slot cools).
+      The cooling temperature keeps its rule: shown when a thermostat can cool.
   - *Claude's proposal, to confirm:* a converted slot keeps its fan and its vanes, which are not
     an HVAC mode.
   - *Claude's proposals, made while implementing, to confirm:*
@@ -601,8 +613,9 @@ future contributor might question.
       without a preset is dropped, and the slot before it goes on. At midnight, the day has no
       slot before: the next slot starts at midnight, where the conversion of the weeks takes
       the last slot of the day before.
-    - **The panel shows the setting** as two choices in the settings dialog, and as a list *As
-      the house (on)*, *On*, *Off* at the top of a thermostat's sheet.
+    - **The panel shows the setting** as two choices in the settings dialog, and as three
+      choices *As the house (on)*, *On*, *Off* in a thermostat's dialog. The thermostat's dialog
+      is the settings dialog, titled with the thermostat's name, with this setting alone.
 - **A Versatile Thermostat is read as it was asked, not as it protects itself** (#91, #92).
   VTherm turns itself off for an open window or with its auto start/stop, and refuses heat
   until the cause ends. VTherm 10.5 keeps what it was asked for in `requested_state`

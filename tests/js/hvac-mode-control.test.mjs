@@ -3,7 +3,7 @@
 // change first, and the user turns it off or cancels.
 import { afterEach, beforeEach, describe, mock, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { WEEKEND, cleanup, fakeHass, integrationData } from './helpers.mjs';
+import { WEEKEND, cleanup, createCard, fakeDialogManager, fakeHass, integrationData } from './helpers.mjs';
 import { $, $$, click, day, text } from './houses/dom.mjs';
 import * as heaterAndAtelier from './houses/heater-and-atelier.mjs';
 
@@ -93,6 +93,46 @@ describe('without control of the HVAC mode, the card offers none', () => {
     card._openMenu(ATELIER, 0, 0, 0, 0);
     assert.doesNotMatch(text($(card, '.menu')), /Tout en chauffe|Tout en clim/);
   });
+
+  test('the legend shows no cool color: no slot cools', () => {
+    const card = cardOf(setup({ thermostats: without(ATELIER) }), { show: [ATELIER] });
+    assert.equal($$(card, '.legend i.cool').length, 0);
+  });
+});
+
+// The owner's decision (2026-11-28): a preset keeps both temperatures, as an air conditioner
+// switched to cool by hand gets the cooling one. Only what cooling slots use is hidden
+describe('without control of the HVAC mode, a preset hides what only cooling slots use', () => {
+  const presetsOf = (hass) => createCard(hass, { thermostats: [SALON, ATELIER], view: 'presets' });
+
+  test('its temperature when cooling stays, its color when cooling goes', () => {
+    const card = presetsOf(setup({ thermostats: without(ATELIER) }));
+    click(card, '[data-kind="preset"][data-preset="eco"]');
+    assert.ok($(card, '.cell-ed [data-cell-cool]'), 'the temperature when cooling');
+    assert.equal($(card, '.cell-ed [data-cell-cool-color]'), null);
+    assert.doesNotMatch(text($(card, '.cell-ed .pv-fields')), /Couleur en chauffe|Couleur en clim/);
+    assert.ok($(card, '.cell-ed .pv-name [data-cell-color]'), 'one color, beside its name');
+  });
+
+  test('a temperature when cooling can be cleared: no slot cools', async () => {
+    const hass = setup({ thermostats: without(ATELIER), atelier: ['00:00 eco', '14:00 comfort'] });
+    hass.data.presets = hass.data.presets.map((p) => (p.id === 'comfort' ? { ...p, cool_temperature: 25 } : p));
+    hass.data.targets[ATELIER] = {};
+    const card = presetsOf(hass);
+    click(card, '[data-kind="preset"][data-preset="comfort"]');
+    const cool = $(card, '.cell-ed [data-cell-cool]');
+    cool.value = '';
+    cool.dispatchEvent(new window.Event('input', { bubbles: true }));
+    await card._action('cell-apply', {});
+    assert.equal(card._cellError || null, null);
+    assert.equal('cool_temperature' in lastCall(hass).presets.find((p) => p.id === 'comfort'), false);
+  });
+
+  test('an air conditioner with control keeps the color when cooling', () => {
+    const card = presetsOf(setup({ thermostats: without(SALON) }));
+    click(card, '[data-kind="preset"][data-preset="eco"]');
+    assert.ok($(card, '.cell-ed [data-cell-cool-color]'));
+  });
 });
 
 describe('the setting in the settings dialog, for the house', () => {
@@ -179,7 +219,9 @@ describe('the setting in the settings dialog, for the house', () => {
   });
 });
 
-describe('the setting in a thermostat\'s sheet of the panel', () => {
+// The owner's decision (2026-11-28): a thermostat's setting is set almost once. A gear on its page
+// of the panel opens a small dialog, as the panel's gear opens the settings of the house
+describe('the setting of one thermostat, behind the gear of its page in the panel', () => {
   beforeEach(() => {
     window.loadCardHelpers = async () => ({ createCardElement: (config) => Object.assign(document.createElement('div'), { config }) });
   });
@@ -194,31 +236,67 @@ describe('the setting in a thermostat\'s sheet of the panel', () => {
     el.route = { prefix: '/chauffage', path };
     return el;
   };
+  // The dialog of one thermostat, as the gear opens it
+  const dialog = (hass, climate = SALON) => {
+    const el = document.createElement('chauffage-settings-dialog');
+    document.body.appendChild(el);
+    el.hass = hass;
+    el.showDialog({ climate });
+    return el;
+  };
+  const choose = (el, value) => {
+    const radio = $$(el, '[data-hvac-control]').find((r) => r.value === value);
+    radio.checked = true;
+    radio.dispatchEvent(new Event('change', { bubbles: true }));
+  };
   const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+  const OFF_SLOT_REMOVED = [{ entity_id: SALON, schedule: 'normal', day: 0, start: '22:30', preset: null, hvac_mode: 'off', change: 'removed' }];
 
-  test('as the house, on or off; as the house by default', () => {
-    const el = panel(fakeHass(), '/thermostats/climate.salon');
-    const select = $(el, '[data-hvac-control]');
-    assert.equal(text($(el, '.hvac-control span')), 'Contrôler le mode HVAC');
-    assert.deepEqual([...select.options].map((o) => o.textContent), ['Comme la maison (activé)', 'Activé', 'Désactivé']);
-    assert.equal(select.value, 'house');
+  test('the thermostat\'s page has no list of the setting, and a gear that opens its dialog', async () => {
+    const hass = fakeHass();
+    const manager = fakeDialogManager(hass);
+    const el = panel(hass, '/thermostats/climate.salon');
+    assert.equal($(el, '.content [data-hvac-control]'), null);
+    const gear = $(el, '.toolbar [data-open-settings][data-climate="climate.salon"]');
+    assert.equal(gear.getAttribute('aria-label'), 'Réglages');
+    gear.click();
+    await tick();
+    assert.deepEqual(manager.shown.map((d) => [d.dialogTag, d.dialogParams.climate]), [['chauffage-settings-dialog', SALON]]);
+  });
+
+  test('the dialog holds this setting only: as the house, on or off; as the house by default', () => {
+    const el = dialog(fakeHass());
+    assert.equal(text($(el, '.hvac-settings h3')), 'Contrôler le mode HVAC');
+    assert.deepEqual($$(el, '.hvac-settings .choice').map(text), ['Comme la maison (activé)', 'Activé', 'Désactivé']);
+    assert.equal($$(el, '[data-hvac-control]').find((r) => r.checked).value, 'house');
+    assert.equal($(el, '.override-settings'), null);
+    assert.equal($(el, '.access-settings'), null);
   });
 
   test('a thermostat that says off, in a house that says on', () => {
     const data = integrationData();
     data.thermostats[SALON].hvac_mode_control = false;
     data.hvac_mode_control = true;
-    const el = panel(fakeHass({ data }), '/thermostats/climate.salon');
-    assert.equal($(el, '[data-hvac-control]').value, 'off');
+    const el = dialog(fakeHass({ data }));
+    assert.equal($$(el, '[data-hvac-control]').find((r) => r.checked).value, 'off');
+  });
+
+  test('a question left unanswered is gone when the dialog opens again', async () => {
+    const hass = fakeHass({ reply: (msg) => (msg.type === 'chauffage/hvac_mode_control/set' ? { changes: OFF_SLOT_REMOVED } : null) });
+    const el = dialog(hass);
+    choose(el, 'off');
+    await tick();
+    el.closeDialog();
+    el.showDialog({ climate: SALON });
+    assert.equal($(el, '.hvac-ask'), null);
+    assert.equal($$(el, '[data-hvac-control]').find((r) => r.checked).value, 'house');
   });
 
   test('turning it off for the thermostat asks first, for this thermostat only', async () => {
-    const changes = [{ entity_id: SALON, schedule: 'normal', day: 0, start: '22:30', preset: null, hvac_mode: 'off', change: 'removed' }];
+    const changes = OFF_SLOT_REMOVED;
     const hass = fakeHass({ reply: (msg) => (msg.type === 'chauffage/hvac_mode_control/set' ? { changes } : null) });
-    const el = panel(hass, '/thermostats/climate.salon');
-    const select = $(el, '[data-hvac-control]');
-    select.value = 'off';
-    select.dispatchEvent(new Event('change', { bubbles: true }));
+    const el = dialog(hass);
+    choose(el, 'off');
     await tick();
     assert.deepEqual(hvacCalls(hass).at(-1), { type: 'chauffage/hvac_mode_control/set', value: false, entity_id: SALON, preview: true });
     assert.deepEqual($$(el, '.hvac-changes li li').map(text), ['Lun · 22:30 · Éteint → supprimé']);
@@ -231,10 +309,8 @@ describe('the setting in a thermostat\'s sheet of the panel', () => {
     const data = integrationData();
     data.thermostats[SALON].hvac_mode_control = true;
     const hass = fakeHass({ data, reply: (msg) => (msg.type === 'chauffage/hvac_mode_control/set' ? { changes: [] } : null) });
-    const el = panel(hass, '/thermostats/climate.salon');
-    const select = $(el, '[data-hvac-control]');
-    select.value = 'house';
-    select.dispatchEvent(new Event('change', { bubbles: true }));
+    const el = dialog(hass);
+    choose(el, 'house');
     await tick();
     await tick();
     assert.deepEqual(hvacCalls(hass).map((m) => [m.value, !!m.preview]), [[null, true], [null, false]]);

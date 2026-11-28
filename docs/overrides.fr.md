@@ -119,7 +119,7 @@ Vous allumez et éteignez les pièces à la main, selon qui est là ? Désactive
 Une consigne changée à la main reste une dérogation.
 
 **Où le régler.** Pour toute la maison, ouvrez le bouton ⚙ du panneau Chauffage. Pour un seul
-thermostat, ouvrez sa page dans le panneau, puis choisissez *Comme la maison*, *Activé* ou
+thermostat, ouvrez sa page dans le panneau, touchez son bouton ⚙, puis choisissez *Comme la maison*, *Activé* ou
 *Désactivé*.
 
 **Vos semaines changent.** Avant que le réglage se désactive, le panneau liste les créneaux qui

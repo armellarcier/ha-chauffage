@@ -341,15 +341,28 @@ describe('the Chauffage panel', () => {
   describe('telling existing users about the new off behavior (#91)', () => {
     test('the Thermostats tab says once: a thermostat turned off by hand turns back on; its link opens the overrides page, in the user\'s language', () => {
       const el = panel(setup(), '/thermostats');
-      assert.match(text($(el, '.notice.new-off')), /Nouveau : un thermostat éteint à la main se rallume à la fin de sa dérogation\. Pour le laisser éteint, suspendez son pilotage\./);
+      assert.match(text($(el, '.notice.new-off')), /Nouveau : un thermostat éteint à la main se rallume à la fin de sa dérogation\. Pour le laisser éteint, désactivez Contrôler le mode HVAC\./);
+      assert.equal(text($(el, '.new-off em')), 'Contrôler le mode HVAC');
       const link = $(el, '.new-off a');
       assert.equal(text(link), 'En savoir plus');
       assert.match(link.href, /\/docs\/overrides\.fr\.md#%C3%A9teindre-un-thermostat-%C3%A0-la-main$/);
       assert.equal(link.target, '_blank');
       el.remove();
       const en = panel(setup({ locale: { language: 'en' } }), '/thermostats');
-      assert.match(text($(en, '.notice.new-off')), /^New: a thermostat turned off by hand turns back on/);
+      assert.match(text($(en, '.notice.new-off')), /^New: a thermostat turned off by hand turns back on at the end of its override\. To keep it off, turn off Control the HVAC mode\./);
       assert.match($(en, '.new-off a').href, /\/docs\/overrides\.md#turn-a-thermostat-off-by-hand$/);
+    });
+
+    test('its Réglages button, next to Fermer, opens the settings at Contrôler le mode HVAC', async () => {
+      const hass = setup();
+      const manager = fakeDialogManager(hass);
+      const el = panel(hass, '/thermostats');
+      const button = $(el, '.new-off .btn[data-open-settings="hvac"]');
+      assert.equal(text(button), 'Réglages');
+      assert.equal(button.nextElementSibling, $(el, '.new-off [data-close-notice]'));
+      button.click();
+      await tick();
+      assert.deepEqual(manager.shown.map((d) => [d.dialogTag, d.dialogParams.section]), [['chauffage-settings-dialog', 'hvac']]);
     });
 
     test('closed, it stays closed on this browser', () => {

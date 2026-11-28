@@ -36,8 +36,8 @@ week to another schedule, and show the thermostat's *History*.
 With the access level *Plan*, *Edit its week* opens the dashboard that holds the thermostat's
 schedule card, not the panel.
 
-At the top of the page, *Control the HVAC mode* says whether Chauffage turns this thermostat on
-and off. See [Turn rooms on and off yourself](overrides.md#turn-rooms-on-and-off-yourself).
+The ⚙ at the top of the page opens the thermostat's setting *Control the HVAC mode*. This
+setting says whether Chauffage turns this thermostat on and off. See [Turn rooms on and off yourself](overrides.md#turn-rooms-on-and-off-yourself).
 
 Each page has its own address, for example `/chauffage/thermostats/climate.living_room`. You can
 link to a page from a dashboard or a notification.

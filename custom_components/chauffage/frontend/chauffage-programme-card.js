@@ -67,7 +67,7 @@ const I18N = {
     untilNextSlot: 'Until {time} (next slot)',
     offUntil: '{off}: until {when}',
     offUntilNextSlot: '{off}: until the next slot',
-    newOffNotice: 'New: a thermostat turned off by hand turns back on at the end of its override. To keep it off, pause its control.',
+    newOffNotice: 'New: a thermostat turned off by hand turns back on at the end of its override. To keep it off, turn off {setting}.',
     newOverride: 'New override…',
     resume: 'Resume the schedule',
     paused: 'Control paused',
@@ -422,7 +422,7 @@ const I18N = {
     untilNextSlot: "Jusqu'à {time} (prochain créneau)",
     offUntil: "{off} : jusqu'à {when}",
     offUntilNextSlot: "{off} : jusqu'au prochain créneau",
-    newOffNotice: 'Nouveau : un thermostat éteint à la main se rallume à la fin de sa dérogation. Pour le laisser éteint, suspendez son pilotage.',
+    newOffNotice: 'Nouveau : un thermostat éteint à la main se rallume à la fin de sa dérogation. Pour le laisser éteint, désactivez {setting}.',
     newOverride: 'Nouvelle dérogation…',
     resume: 'Reprendre le planning',
     paused: 'Pilotage suspendu',
@@ -3965,9 +3965,10 @@ class ChauffageProgrammeCard extends HTMLElement {
     return modes;
   }
 
-  // Whether a shown thermostat cools: the legend then shows each preset's cool color too
+  // Whether a shown thermostat has cooling slots: the legend then shows each preset's cool color
+  // too. Not without control of its HVAC mode (#159): no slot cools
   _showsCool() {
-    return this._shown.some((climate) => listsMode(this._hass, climate, 'cool'));
+    return this._shown.some((climate) => listsMode(this._hass, climate, 'cool') && controlsHvac(climate));
   }
 
   _segInner(start, end, s) {
@@ -5913,17 +5914,20 @@ class ChauffageProgrammeCard extends HTMLElement {
         return this._cellPopover(preset, title, body, `<button class="btn" data-act="cell-delete-cancel">${esc(t('cancel'))}</button>
           <button class="btn danger" data-act="cell-delete-confirm">${esc(t('deletePreset'))}</button>`);
       }
-      // With an air conditioner: its color when heating and its color when cooling, each on a
-      // row with its label. Without one: its color, beside its name
+      // With an air conditioner: its temperature when heating and when cooling. With cooling
+      // slots, its color when heating and its color when cooling, each on a row with its label.
+      // Without: its color, beside its name. An air conditioner whose HVAC mode Chauffage does not
+      // control has no cooling slot, and still gets the cooling temperature (#159)
       const cools = this._thermostats.some(({ entity }) => listsMode(this._hass, entity, 'cool'));
-      const color = `<input type="color" data-cell-color value="${esc(isNew ? '#9e9e9e' : preset.color)}" title="${esc(t(cools ? 'presetHeatColor' : 'presetColor'))}">`;
+      const coolSlots = this._thermostats.some(({ entity }) => listsMode(this._hass, entity, 'cool') && controlsHvac(entity));
+      const color = `<input type="color" data-cell-color value="${esc(isNew ? '#9e9e9e' : preset.color)}" title="${esc(t(coolSlots ? 'presetHeatColor' : 'presetColor'))}">`;
       body = `<div class="pv-fields">
           <span>${esc(t('presetName'))}</span>
-          <span class="pv-name">${cools ? '' : color}
+          <span class="pv-name">${coolSlots ? '' : color}
             <input type="text" data-cell-name value="${esc(isNew ? '' : preset.name)}" placeholder="${esc(t('presetName'))}"></span>
           <span>${esc(t(cools ? 'whenHeating' : 'presetDefaultTemperature'))}</span>${tempInput(isNew ? 19 : preset.temperature, 'data-cell-temp', t(cools ? 'temperatureHeatAria' : 'presetTemperature'))}
-          ${cools ? `<span>${esc(t('whenCooling'))}</span>${tempInput(isNew ? null : preset.cool_temperature, 'data-cell-cool', t('temperatureCoolAria'))}
-          <span>${esc(t('presetHeatColor'))}</span><span class="pv-name">${color}</span>
+          ${cools ? `<span>${esc(t('whenCooling'))}</span>${tempInput(isNew ? null : preset.cool_temperature, 'data-cell-cool', t('temperatureCoolAria'))}` : ''}
+          ${coolSlots ? `<span>${esc(t('presetHeatColor'))}</span><span class="pv-name">${color}</span>
           <span>${esc(t('presetCoolColor'))}</span>
           <span class="pv-name"><input type="color" data-cell-cool-color${preset.cool_color ? ' data-chosen' : ''} value="${esc(coolColor(isNew ? { color: '#9e9e9e' } : preset))}" title="${esc(t('presetCoolColor'))}"></span>` : ''}
         </div>
@@ -8719,10 +8723,10 @@ const seenNewSetting = (hass) => {
 };
 
 // ---------- the setting Control the HVAC mode (#159) ----------
-// Set for the house in the settings dialog, and for one thermostat in its sheet of the panel.
-// Before a thermostat loses the control, the slots that change are listed, and the user turns it
-// off or cancels. The host (the dialog, the panel) keeps `_hvacAsk`, `_hvacBusy` and
-// `_hvacError`, and draws them again in `_update`.
+// Set in the settings dialog: for the house, or for one thermostat from the ⚙ of its page in the
+// panel. Before a thermostat loses the control, the slots that change are listed, and the user
+// turns it off or cancels. The dialog keeps `_hvacAsk`, `_hvacBusy` and `_hvacError`, and draws
+// them again in `_update`.
 
 // The slots that change, by thermostat and schedule, a slot's days together:
 // "Lun–Ven · 22:30 · Éteint → supprimé", "Lun–Dim · 06:30 · Confort, Clim → Confort"
@@ -8748,7 +8752,7 @@ function hvacChangesHtml(hass, src, changes) {
       <ul>${g.rows.sort((a, b) => toMin(a.start) - toMin(b.start)).map((r) => `<li>${esc(line(r))}</li>`).join('')}</ul></li>`).join('')}</ul>`;
 }
 
-// The question, in the settings dialog and in the panel: the slots, then two buttons a finger
+// The question, in the settings dialog: the slots, then two buttons a finger
 // can reach
 const HVAC_ASK_STYLE = `
   .hvac-ask { margin:8px 0; padding:12px; border:1px solid var(--warning-color, #ffa600); border-radius:12px; }
@@ -8821,8 +8825,9 @@ const hvacChoiceOf = (host, setting) => (host._hvacAsk ? host._hvacAsk.value : s
 // (`show-dialog`) puts the dialog on top of the dialogs already open, the more-info dialog for
 // example, and gives it a history entry: Back closes it, and only it. Without Home Assistant's
 // frontend, the dialog opens by itself and takes its own history entry.
-// `section`: 'access' scrolls the dialog to the access level
-function openSettings(from, hass, section = null) {
+// `section`: 'access' or 'hvac' scrolls the dialog to that section. `climate`: the dialog holds
+// that thermostat's own setting only (#159)
+function openSettings(from, hass, section = null, climate = null) {
   seenNewSetting(hass);
   // From the more-info block: leaving for a page closes the more-info dialog too
   const moreInfo = from.localName === 'chauffage-moreinfo';
@@ -8830,13 +8835,13 @@ function openSettings(from, hass, section = null) {
     from.dispatchEvent(new CustomEvent('show-dialog', {
       bubbles: true,
       composed: true,
-      detail: { dialogTag: SETTINGS_DIALOG, dialogImport: () => Promise.resolve(), dialogParams: { moreInfo, section } },
+      detail: { dialogTag: SETTINGS_DIALOG, dialogImport: () => Promise.resolve(), dialogParams: { moreInfo, section, climate } },
     }));
     return;
   }
   const dialog = document.querySelector(SETTINGS_DIALOG) || document.body.appendChild(document.createElement(SETTINGS_DIALOG));
   dialog.hass = hass;
-  dialog.showDialog({ history: true, moreInfo, section });
+  dialog.showDialog({ history: true, moreInfo, section, climate });
 }
 
 // An event from inside the settings dialog: not a press outside a popover, nor its Escape
@@ -8914,7 +8919,9 @@ class ChauffageSettingsDialog extends HTMLElement {
       if (e.target.matches('[data-override-end]')) this._setSettings({ manual_override_end: e.target.value });
       if (e.target.matches('[data-off-override-end]')) this._setSettings({ off_override_end: e.target.value });
       if (e.target.matches('[data-access-level]')) this._setSettings({ access_level: e.target.value });
-      if (e.target.matches('[data-hvac-control]')) chooseHvacControl(this, e.target.value === 'on', null);
+      if (e.target.matches('[data-hvac-control]')) {
+        chooseHvacControl(this, { house: null, on: true, off: false }[e.target.value], this._climate);
+      }
     });
     // Its ✕, and a tap outside the browser's dialog (on its backdrop: the dialog element itself)
     this.shadowRoot.addEventListener('click', (e) => {
@@ -8970,8 +8977,13 @@ class ChauffageSettingsDialog extends HTMLElement {
     this._ownHistory = !!(params && params.history);
     this._moreInfo = !!(params && params.moreInfo); // opened from the more-info block
     this._popped = false;
-    // Opened from the notice of the access level: scrolled to its section, once filled (_update)
-    this._scrollTo = params && params.section === 'access' ? '.access-settings' : null;
+    // Opened from a notice: scrolled to its section, once filled (_update)
+    this._scrollTo = { access: '.access-settings', hvac: '.hvac-settings' }[params && params.section] || null;
+    // One thermostat's own setting (#159), else the house's settings. A question left unanswered
+    // is dropped
+    this._climate = (params && params.climate) || null;
+    this._hvacAsk = null;
+    this._hvacError = null;
     seenNewSetting(this._hass);
     this._unlisten = INTEGRATION.listen(() => this._update());
     this._build();
@@ -9012,17 +9024,18 @@ class ChauffageSettingsDialog extends HTMLElement {
   // own ✕). Both are `open`, and say `closed` once hidden.
   _build() {
     const t = this._t;
-    const title = t('settingsTitle');
+    // A thermostat's settings: its name, and its setting alone
+    const title = this._climate ? thermostatName(this._hass, this._climate) : t('settingsTitle');
     const close = `<button class="close" data-close title="${esc(t('close'))}" aria-label="${esc(t('close'))}">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="${MDI.close}"></path></svg></button>`;
+    const hvac = `<section class="hvac-settings"><h3>${esc(t('hvacControlTitle'))}</h3>
+        <div data-fill="hvac"></div><p class="note">${esc(t('hvacControlHelp'))}</p><div data-fill="hvac-ask"></div></section>`;
     // The duration's field stays across updates: only the parts under it are filled again
-    const body = `<div class="body"><section class="override-settings"><h3>${esc(t('overridesTitle'))}</h3>
+    const body = this._climate ? `<div class="body">${hvac}</div>` : `<div class="body"><section class="override-settings"><h3>${esc(t('overridesTitle'))}</h3>
         <p class="intro">${esc(t('overrideEndIntro'))}</p>
         <div class="duration-row"><div class="duration-field"></div><span data-fill="settings-saved"></span></div>
         <div data-fill="settings"></div></section>
-        <section class="hvac-settings"><h3>${esc(t('hvacControlTitle'))}</h3>
-        <div data-fill="hvac"></div><p class="note">${esc(t('hvacControlHelp'))}</p><div data-fill="hvac-ask"></div></section>
-        ${this._accessHtml()}${this._footHtml()}</div>`;
+        ${hvac}${this._accessHtml()}${this._footHtml()}</div>`;
     this.shadowRoot.innerHTML = `<style>${SETTINGS_CSS}</style>`;
     const HaDialog = customElements.get('ha-dialog');
     let frame;
@@ -9102,16 +9115,21 @@ class ChauffageSettingsDialog extends HTMLElement {
       ? `<div class="error">${esc(this._settingsError)}</div>` : '');
   }
 
-  // The section *Control the HVAC mode* of the house (#159): on or off. Drawn once, then updated
-  // in place, as the ends of an override
+  // The section *Control the HVAC mode* (#159): on or off for the house; as the house, on or off
+  // for a thermostat. Drawn once, then updated in place, as the ends of an override
   _fillHvac(src) {
     const host = this.shadowRoot.querySelector('[data-fill="hvac"]');
     if (!host) return;
     const t = this._t;
-    const choices = [['on', 'hvacControlOn'], ['off', 'hvacControlOff']];
+    const climate = this._climate;
+    const choices = climate
+      ? [['house', t('hvacControlHouse', { value: t(src.hvacModeControl() ? 'hvacControlHouseOn' : 'hvacControlHouseOff') })],
+        ['on', t('hvacControlThermostatOn')], ['off', t('hvacControlOff')]]
+      : [['on', t('hvacControlOn')], ['off', t('hvacControlOff')]];
     setHtml(host, `<div class="choices" role="radiogroup" aria-label="${esc(t('hvacControlTitle'))}">${choices.map(([value, label]) => `<label class="choice">
-        <input type="radio" name="hvac-control" value="${value}" data-hvac-control><span class="choice-label">${esc(t(label))}</span></label>`).join('')}</div>`);
-    const current = hvacChoiceOf(this, src.hvacModeControl()) ? 'on' : 'off';
+        <input type="radio" name="hvac-control" value="${value}" data-hvac-control><span class="choice-label">${esc(label)}</span></label>`).join('')}</div>`);
+    const setting = hvacChoiceOf(this, climate ? src.ownHvacModeControl(climate) : src.hvacModeControl());
+    const current = setting === null ? 'house' : setting ? 'on' : 'off';
     for (const input of host.querySelectorAll('input')) {
       input.checked = input.value === current;
       input.disabled = !src.editable || !!this._hvacBusy || !!this._hvacAsk;
@@ -9355,22 +9373,9 @@ class ChauffagePanel extends HTMLElement {
       this._historyOn = localStorage.getItem(LS_HISTORY) === '1';
     } catch (e) { /* ignore */ }
     this._picked = new Set(); // the welcome: the thermostats ticked
-    this.shadowRoot.addEventListener('click', (e) => {
-      const answer = e.target.closest('[data-hvac-confirm], [data-hvac-cancel]');
-      if (answer) {
-        answerHvacControl(this, 'hvacConfirm' in answer.dataset);
-        return;
-      }
-      this._onClick(e);
-    });
+    this.shadowRoot.addEventListener('click', (e) => this._onClick(e));
     this.shadowRoot.addEventListener('chauffage-dirty', () => this._fillSavebar());
     this.shadowRoot.addEventListener('change', (e) => {
-      const hvac = e.target.closest('[data-hvac-control]');
-      if (hvac) {
-        const route = panelRoute(this._route && this._route.path, dataSource(this._hass), this._hass);
-        chooseHvacControl(this, { house: null, on: true, off: false }[hvac.value], route.id);
-        return;
-      }
       const box = e.target.closest('[data-pick]');
       if (!box) return;
       if (box.checked) this._picked.add(box.dataset.pick);
@@ -9528,6 +9533,9 @@ class ChauffagePanel extends HTMLElement {
       head = `<div class="toolbar"><ha-menu-button></ha-menu-button>
           <nav class="title crumbs"><a href="/chauffage/${route.list}" data-navigate="/chauffage/${route.list}">${esc(t(list[1]))}</a>
             <span class="sep">›</span><span data-fill="crumb"></span></nav>
+          ${src.editable && !notice && route.sheet === 'thermostat'
+    // A thermostat's own settings (#159): a dialog, from a ⚙ as the house's settings
+    ? `<button class="page-more" data-open-settings data-climate="${esc(route.id)}" title="${esc(t('pageSettings'))}" aria-label="${esc(t('pageSettings'))}"><ha-icon icon="mdi:cog"></ha-icon></button>` : ''}
           ${src.editable && !notice ? `<button class="page-more" data-page-menu title="${esc(t('moreActions'))}" aria-label="${esc(t('moreActions'))}">⋮</button>` : ''}
           <div data-fill="page-menu"></div>
         </div>`;
@@ -9636,9 +9644,11 @@ class ChauffagePanel extends HTMLElement {
             <div><button class="btn" data-open-settings>${esc(t('endsChoose'))}</button></div></li></ul></div>`
         // An existing user never sees the next steps: the new off behavior (#91) and the new
         // setting (#83, the access level for an admin, #99) are told once each
-        : (notice ? `<div class="notice new-off"><span>${esc(t('newOffNotice'))}
+        // The new off notice names the setting that keeps a thermostat off (#159), and opens it
+        : (notice ? `<div class="notice new-off"><span>${esc(t('newOffNotice', { setting: '\u0001' })).replace('\u0001', `<em>${esc(t('hvacControlTitle'))}</em>`)}
             <a href="${DOC_OFF_BY_HAND[makeLocale(this._hass).lang] || DOC_OFF_BY_HAND.en}" target="_blank" rel="noopener">${esc(t('readMore'))}</a></span>
-            <button class="btn" data-close-notice>${esc(t('nextClose'))}</button></div>` : '')
+            <div class="notice-btns">${src.editable ? `<button class="btn" data-open-settings="hvac">${esc(t('pageSettings'))}</button>` : ''}
+            <button class="btn" data-close-notice>${esc(t('nextClose'))}</button></div></div>` : '')
           + (setting ? `<div class="notice new-setting"><span>${esc(t(src.admin ? 'newAccessNotice' : 'newSettingNotice'))}
             <a href="${panelPath('settings')}" data-open-settings${src.admin ? '="access"' : ''}>${esc(t('pageSettings'))}</a></span>
             <button class="btn" data-close-new-setting>${esc(t('nextClose'))}</button></div>` : ''));
@@ -9774,24 +9784,7 @@ class ChauffagePanel extends HTMLElement {
         <button class="btn${paused ? ' primary' : ''}" data-pause="${paused ? '0' : '1'}">${esc(t(paused ? 'resumeShort' : 'pauseShort'))}</button>
         ${paused ? `<span class="badge paused">${esc(t('paused'))}</span>` : ''}
       </div>
-      ${this._hvacControlHtml(climate, src)}
       ${this._error ? `<div class="error">${esc(this._error)}</div>` : ''}`;
-  }
-
-  // Control the HVAC mode, for this thermostat (#159): as the house, on or off
-  _hvacControlHtml(climate, src) {
-    const t = this._t;
-    const own = src.ownHvacModeControl(climate);
-    const choice = (value) => (value === null ? 'house' : value ? 'on' : 'off');
-    const chosen = choice(hvacChoiceOf(this, own));
-    const options = [
-      ['house', t('hvacControlHouse', { value: t(src.hvacModeControl() ? 'hvacControlHouseOn' : 'hvacControlHouseOff') })],
-      ['on', t('hvacControlThermostatOn')], ['off', t('hvacControlOff')],
-    ];
-    const disabled = !src.editable || this._hvacBusy || this._hvacAsk;
-    return `<label class="hvac-control"><span>${esc(t('hvacControlTitle'))}</span>
-        <select data-hvac-control${disabled ? ' disabled' : ''}>${options.map(([value, label]) => `<option value="${value}"${value === chosen ? ' selected' : ''}>${esc(label)}</option>`).join('')}</select></label>
-      ${hvacAskHtml(this, src)}`;
   }
 
   // How long a setpoint changed by hand lasts, as the settings of overrides say (#83)
@@ -9921,7 +9914,7 @@ class ChauffagePanel extends HTMLElement {
       }
       // The settings, on top of the panel: the notice of the new setting is then told
       if ('openSettings' in ds) {
-        openSettings(this, this._hass, ds.openSettings || null);
+        openSettings(this, this._hass, ds.openSettings || null, ds.climate || null);
         return this._update();
       }
       if (ds.moreInfo) return openMoreInfo(this, ds.moreInfo);
@@ -10051,11 +10044,15 @@ const PANEL_CSS = `
   .next-steps ul { margin:4px 0; padding-left:20px; line-height:1.6; }
   .notice.new-off { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; }
   .notice.new-off > span { flex:1 1 200px; }
+  .notice-btns { display:flex; gap:8px; margin-left:auto; }
   .next-steps li > div { margin:4px 0 8px; }
   .crumbs { display:flex; align-items:baseline; gap:8px; min-width:0; }
-  .crumbs a { color:inherit; opacity:.8; text-decoration:none; }
+  /* On a phone, the list's name gives way first: the page's name says where you are */
+  .crumbs a { flex:0 1000 auto; min-width:1.5em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    color:inherit; opacity:.8; text-decoration:none; }
   .crumbs a:hover { opacity:1; text-decoration:underline; }
-  .crumbs span:last-child { overflow:hidden; text-overflow:ellipsis; }
+  .crumbs span:last-child { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+  .crumbs .sep { flex:none; }
   .sep { opacity:.6; }
   /* The header, aligned with the surface below: the tile top right, the rest on the left; on
      a phone, the tile first */
@@ -10063,10 +10060,6 @@ const PANEL_CSS = `
   .head .tile { order:-1; min-width:0; }
   .control { display:flex; align-items:center; gap:8px; margin-top:8px; }
   .about { font-size:14px; color:var(--secondary-text-color); }
-  .hvac-control { display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; margin-top:12px; font-size:14px; }
-  .hvac-control select { min-height:40px; max-width:100%; padding:0 8px; border:1px solid var(--divider-color);
-    border-radius:8px; background:var(--card-background-color, #fff); color:var(--primary-text-color); font:inherit; }
-  ${HVAC_ASK_STYLE}
   .about > div { padding:2px 0; }
   @media (min-width:600px) {
     .head { grid-template-columns:minmax(0, 1fr) minmax(240px, 320px); align-items:start; }

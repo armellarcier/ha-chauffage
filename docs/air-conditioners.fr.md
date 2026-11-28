@@ -34,7 +34,7 @@ qui chauffent ou climatisent prennent ce mode HVAC. Les autres créneaux ne chan
 exemple un créneau *Éteint*. Touchez *Enregistrer* pour garder le changement.
 
 **Les couleurs.** Pour changer la couleur en clim d'un préréglage, ouvrez l'onglet
-*Préréglages*.
+*Préréglages*. Cette couleur n'apparaît que si Chauffage contrôle le mode HVAC d'un climatiseur.
 
 **L'été et l'hiver.** Créez un planning *Été* en copiant votre planning *Hiver*, et passez ses
 créneaux en *Clim*. Pour changer de saison, activez l'autre planning. Vous pouvez l'activer à la

@@ -39,8 +39,8 @@ vous pouvez copier une semaine vers un autre planning, et afficher l'*Historique
 Avec le niveau d'accès *Programmer*, *Modifier sa semaine* ouvre le tableau de bord qui contient
 la carte des plannings du thermostat, et non le panneau.
 
-En haut de la page, *Contrôler le mode HVAC* dit si Chauffage allume et éteint ce thermostat.
-Voir [Allumer et éteindre les pièces vous-même](overrides.fr.md#allumer-et-éteindre-les-pièces-vous-même).
+Le bouton ⚙ en haut de la page ouvre le réglage *Contrôler le mode HVAC* du thermostat. Ce
+réglage dit si Chauffage allume et éteint ce thermostat. Voir [Allumer et éteindre les pièces vous-même](overrides.fr.md#allumer-et-éteindre-les-pièces-vous-même).
 
 Chaque page a sa propre adresse, par exemple `/chauffage/thermostats/climate.salon`. Vous pouvez
 mettre un lien vers une page dans un tableau de bord ou une notification.
