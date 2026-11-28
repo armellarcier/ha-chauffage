@@ -118,7 +118,7 @@ const SETTINGS_CSS = `
   .section-head { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; }
   .access-settings .saved { color:var(--success-color, #43a047); font-size:14px; }
   .off-end-title { margin:14px 0 4px; font-size:14px; font-weight:500; }
-  .hvac-settings { margin-top:16px; }
+  .override-settings { margin-top:16px; }
   .hvac-settings h3 { margin:12px 0 4px; font-size:16px; font-weight:500; }
   .hvac-settings .note { margin:4px 0 8px; font-size:13px; line-height:1.4; color:var(--secondary-text-color); }
   ${HVAC_ASK_STYLE}
@@ -338,7 +338,8 @@ export class ChauffageSettingsDialog extends LitElement {
   _body() {
     const src = dataSource(this.hass);
     if (this._thermostat) return html`<div class="body">${this._hvacSettings(src)}</div>`;
-    return html`<div class="body">${this._overrideSettings(src)}${this._hvacSettings(src)}${this._accessSettings(src)}${this._foot()}</div>`;
+    // Control the HVAC mode first (the owner's decision, #159)
+    return html`<div class="body">${this._hvacSettings(src)}${this._overrideSettings(src)}${this._accessSettings(src)}${this._foot()}</div>`;
   }
 
   // The section *Overrides* (#83). The duration first, then the three ends of an override, each

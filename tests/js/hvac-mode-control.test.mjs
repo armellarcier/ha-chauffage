@@ -175,6 +175,11 @@ describe('the setting in the settings dialog, for the house', () => {
     assert.equal($(el, '.hvac-ask'), null);
   });
 
+  test('the setting comes first, before the other settings (the owner\'s decision)', async () => {
+    const el = await settings(house());
+    assert.deepEqual($$(el, '.body > section').map((s) => s.className).slice(0, 2), ['hvac-settings', 'override-settings']);
+  });
+
   test('turned off, the house says it', async () => {
     const data = { ...integrationData(), hvac_mode_control: false };
     const el = await settings(fakeHass({ data }));

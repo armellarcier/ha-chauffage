@@ -330,6 +330,74 @@ async def test_an_override_loses_its_hvac_mode_when_the_control_is_turned_off(be
     assert bench.overrides() == {SALON: {**bench.overrides()[SALON], "target": {"temperature": 24.0}}}
 
 
+# ----- the options flow (the owner's decision of 2026-11-28) -----
+
+async def options_with_control(bench: Bench, value: bool) -> dict:
+    """The options form submitted with the house's setting `value`, the rest as it is."""
+    options = bench.hass.config_entries.options
+    flow = await options.async_init(bench.entry.entry_id)
+    result = await options.async_configure(flow["flow_id"], {"hvac_mode_control": value})
+    await bench.hass.async_block_till_done()
+    return result
+
+
+async def test_the_options_form_holds_the_house_setting_after_the_other_override_settings(bench: Bench):
+    await start(bench, options=None)
+    flow = await bench.hass.config_entries.options.async_init(bench.entry.entry_id)
+    keys = [str(key) for key in flow["data_schema"].schema]
+    assert keys.index("hvac_mode_control") == keys.index("off_override_end") + 1
+    defaults = {str(key): key.default() for key in flow["data_schema"].schema if callable(getattr(key, "default", None))}
+    assert defaults["hvac_mode_control"] is True
+
+
+async def test_turning_the_control_off_in_the_options_lists_the_slots_that_change_first(bench: Bench):
+    """A confirmation step lists them, as the panel does. Nothing changes before it is submitted."""
+    await start_converting(bench)
+    result = await options_with_control(bench, False)
+    assert result["type"] == "form" and result["step_id"] == "hvac_mode_control"
+    changes = result["description_placeholders"]["changes"]
+    assert "Normal" in changes
+    assert "- Mon–Sun · 06:30 · Comfort, Cool → Comfort" in changes
+    assert "- Mon–Sun · 22:30 · Off → removed" in changes
+    assert bench.runtime.settings.hvac_mode_control is True
+    assert bench.weeks()[SALON]["normal"][0] == AC_DAY
+    done = await bench.hass.config_entries.options.async_configure(result["flow_id"], {})
+    await bench.hass.async_block_till_done()
+    assert done["type"] == "create_entry"
+    assert bench.runtime.settings.hvac_mode_control is False
+    assert bench.weeks()[SALON]["normal"][1] == [
+        ["00:00", "comfort"], ["06:30", "comfort", FAN], ["08:30", "eco"], ["17:30", "comfort"]]
+
+
+async def test_closing_the_confirmation_of_the_options_changes_nothing(bench: Bench):
+    await start_converting(bench)
+    result = await options_with_control(bench, False)
+    bench.hass.config_entries.options.async_abort(result["flow_id"])
+    await bench.hass.async_block_till_done()
+    assert bench.runtime.settings.hvac_mode_control is True
+    assert bench.weeks()[SALON]["normal"][0] == AC_DAY
+
+
+async def test_turning_the_control_off_in_the_options_with_nothing_to_convert_is_saved_at_once(bench: Bench):
+    """No slot changes: no confirmation. An off override still ends, as from the panel."""
+    await start(bench, options=None)
+    await override(bench, hvac_mode="off")
+    result = await options_with_control(bench, False)
+    assert result["type"] == "create_entry"
+    assert bench.runtime.settings.hvac_mode_control is False
+    assert bench.overrides() == {}
+
+
+async def test_turning_the_control_on_again_in_the_options_converts_nothing(bench: Bench):
+    await start_converting(bench)
+    await set_control(bench, False)
+    weeks = bench.weeks()[SALON]["normal"]
+    result = await options_with_control(bench, True)
+    assert result["type"] == "create_entry"
+    assert bench.runtime.settings.hvac_mode_control is True
+    assert bench.weeks()[SALON]["normal"] == weeks
+
+
 async def test_turning_the_control_off_realigns_the_thermostats(bench: Bench):
     """The weeks changed: as when they are saved. A thermostat turned off stays off."""
     await start_ac(bench, "23:00", NIGHT_OFF, state="off")
