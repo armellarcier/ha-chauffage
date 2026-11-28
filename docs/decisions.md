@@ -590,8 +590,9 @@ future contributor might question.
   - **A slot pasted on such a thermostat is converted the same way**, as an edited slot already
     loses an HVAC mode its thermostat cannot follow. The integration refuses a week that gives
     such a thermostat an HVAC mode.
-  - **The panel holds the setting, not an entity.** A change from an entity or an automation
-    could not show the user what the conversion changes.
+  - **The panel and the options flow hold the setting, not an entity.** A change from an entity
+    or an automation could not show the user what the conversion changes. The options flow
+    shows it in a confirmation step (the owner's decision of 2026-11-28).
   - **The owner's UX decisions of 2026-11-28:**
     - **The "New" notice of the panel points to the setting**, not to pausing the control: "To
       keep it off, turn off *Control the HVAC mode*." A *Settings* button, next to the close
@@ -600,6 +601,11 @@ future contributor might question.
       set almost once. The ⚙ opens a small dialog with the thermostat's setting (as the house, on
       or off) and the same list of the slots that change before it turns off. The ⚙ matches the
       panel's own ⚙ for the house's settings.
+    - **The setting comes first** in the panel's settings dialog, before the other settings.
+    - **The house's setting is also in the options flow** (*Configure*), next to the other
+      settings of overrides. Turning it off there adds a confirmation step: its description lists
+      the slots that change, as the panel does, and submitting it converts the weeks. Closing
+      the dialog cancels it. With nothing to convert, there is no confirmation step.
     - **A preset keeps both temperatures**, when heating and when cooling: an air conditioner
       without control still gets the cooling value when it is switched to cool by hand. What
       only cooling slots use is hidden while no thermostat whose HVAC mode Chauffage controls

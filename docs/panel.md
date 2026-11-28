@@ -94,6 +94,8 @@ To change the options, go to Settings → Devices & services → Chauffage → *
   [Choose how long an override lasts](overrides.md#choose-how-long-an-override-lasts).
 - **Turned off.** How long a thermostat turned off stays off, *Until the next slot* by default.
   See [Turn a thermostat off by hand](overrides.md#turn-a-thermostat-off-by-hand).
+- **Control the HVAC mode.** On by default. See
+  [Turn rooms on and off yourself](overrides.md#turn-rooms-on-and-off-yourself).
 - **Use the thermostats' presets.** On by default. Turn this option off to drive every
   thermostat with temperatures that you set in Chauffage.
 - **Show Chauffage in the sidebar.** On by default. If you hide Chauffage from the
@@ -105,4 +107,5 @@ To change the options, go to Settings → Devices & services → Chauffage → *
 - **Access level of users who are not administrators.** *Use* by default. See
   [Who may change what](#who-may-change-what).
 
-You can also change the first three options from the ⚙ of the panel, or with their entities.
+You can also change the first four options from the ⚙ of the panel. The first three also have
+entities.

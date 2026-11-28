@@ -105,6 +105,8 @@ Pour changer les options, allez dans Paramètres → Appareils et services → C
 - **Thermostat éteint.** Combien de temps un thermostat éteint le reste, *Jusqu'au prochain
   créneau* par défaut. Voir
   [Éteindre un thermostat à la main](overrides.fr.md#éteindre-un-thermostat-à-la-main).
+- **Contrôler le mode HVAC.** Activé par défaut. Voir
+  [Allumer et éteindre les pièces vous-même](overrides.fr.md#allumer-et-éteindre-les-pièces-vous-même).
 - **Utiliser les préréglages des thermostats.** Activée par défaut. Désactivez cette option pour
   piloter tous les thermostats avec des températures que vous réglez dans Chauffage.
 - **Afficher Chauffage dans la barre latérale.** Activée par défaut. Si vous masquez Chauffage de la
@@ -116,5 +118,5 @@ Pour changer les options, allez dans Paramètres → Appareils et services → C
 - **Niveau d'accès des utilisateurs non administrateurs.** *Utiliser* par défaut. Voir
   [Qui peut modifier quoi](#qui-peut-modifier-quoi).
 
-Vous pouvez aussi changer les trois premières options avec le bouton ⚙ du panneau, ou avec leurs
-entités.
+Vous pouvez aussi changer les quatre premières options avec le bouton ⚙ du panneau. Les trois
+premières ont aussi des entités.

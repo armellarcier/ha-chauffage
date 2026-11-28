@@ -118,11 +118,12 @@ Vous allumez et éteignez les pièces à la main, selon qui est là ? Désactive
 
 Une consigne changée à la main reste une dérogation.
 
-**Où le régler.** Pour toute la maison, ouvrez le bouton ⚙ du panneau Chauffage. Pour un seul
+**Où le régler.** Pour toute la maison, ouvrez le bouton ⚙ du panneau Chauffage, ou les options
+de l'intégration (*Configurer*). Pour un seul
 thermostat, ouvrez sa page dans le panneau, puis son bouton ⚙, et choisissez *Comme la maison*,
 *Activé* ou *Désactivé*.
 
-**Vos semaines changent.** Avant que le réglage se désactive, le panneau liste les créneaux qui
-changent. Vous confirmez ou vous annulez. Un créneau sans préréglage, par exemple *Éteint* ou
+**Vos semaines changent.** Avant que le réglage se désactive, le panneau ou les options listent
+les créneaux qui changent. Vous confirmez ou vous annulez. Un créneau sans préréglage, par exemple *Éteint* ou
 *Ventilation*, est supprimé, et le créneau d'avant continue. Un créneau *Chauffe* ou *Clim*
 garde son préréglage et perd son mode HVAC. Réactiver le réglage ne change rien aux semaines.
