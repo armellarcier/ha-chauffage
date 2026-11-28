@@ -105,7 +105,8 @@ const PANEL_CSS = `
   .next-head h2 { flex:1; margin:8px 0; }
   .next-steps ul { margin:4px 0; padding-left:20px; line-height:1.6; }
   .notice.new-off { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; }
-  .notice.new-off > span { flex:1 1 200px; }
+  .notice.new-off > span:first-child { flex:1 1 200px; }
+  .notice-btns { display:flex; flex-wrap:wrap; gap:8px; margin-left:auto; }
   .next-steps li > div { margin:4px 0 8px; }
   .crumbs { display:flex; align-items:baseline; gap:8px; min-width:0; }
   .crumbs a { color:inherit; opacity:.8; text-decoration:none; }
@@ -512,8 +513,8 @@ export class ChauffagePanel extends LitElement {
     // setting (#83, the access level for an admin, #99) are told once each
     return html`${notice ? html`<div class="notice new-off"><span>${t('newOffNotice')}
             <a href=${DOC_OFF_BY_HAND[makeLocale(this.hass).lang] || DOC_OFF_BY_HAND.en} target="_blank" rel="noopener">${t('readMore')}</a></span>
-            <button class="btn" data-open-settings="hvac">${t('pageSettings')}</button>
-            <button class="btn" data-close-notice>${t('nextClose')}</button></div>` : nothing}${
+            <span class="notice-btns"><button class="btn" data-open-settings="hvac">${t('pageSettings')}</button>
+            <button class="btn" data-close-notice>${t('nextClose')}</button></span></div>` : nothing}${
       setting ? html`<div class="notice new-setting"><span>${t(src.admin ? 'newAccessNotice' : 'newSettingNotice')}
             <a href=${panelPath('settings')} data-open-settings=${src.admin ? 'access' : ''}>${t('pageSettings')}</a></span>
             <button class="btn" data-close-new-setting>${t('nextClose')}</button></div>` : nothing}`;
