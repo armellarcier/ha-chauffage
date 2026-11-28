@@ -586,7 +586,7 @@ future contributor might question.
     - **A preset keeps both temperatures**: an air conditioner without control still gets the
       cooling temperature when it is switched to cool by hand. What only cooling slots use is
       hidden when no air conditioner with control is in the card: the preset's color when
-      cooling, and the refusal to empty a cooling temperature that a slot uses (no slot cools).
+      cooling (in the override block of a thermostat without control too), and the refusal to empty a cooling temperature that a slot uses (no slot cools).
       The cooling temperature keeps its rule: shown when a thermostat can cool.
   - *Claude's proposal, to confirm:* a converted slot keeps its fan and its vanes, which are not
     an HVAC mode.

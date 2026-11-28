@@ -2572,9 +2572,11 @@ function overrideValueHtml(d, src, climate, attrs, loc, hass) {
   // Fan only, dry or auto: an override that sets it and no setpoint
   const idle = !off && NO_PRESET_MODES.includes(target.hvac_mode) && !('temperature' in target) && !('preset_mode' in target) ? target.hvac_mode : null;
   const picked = d && d.preset && targets[d.preset] ? d.preset : null; // not a preset deleted since
-  // The presets in their cool color while the override cools (a heater's: while it does)
+  // The presets in their cool color while the override cools (a heater's: while it does). Not
+  // without control of its HVAC mode (#159): its slots never cool, so no cool color means anything
   const state = stateOf(hass, climate);
   const cools = mode ? mode === 'cool' : overrideHvac(d) === 'cool' || (!overrideHvac(d) && !!state && state.state === 'cool');
+  const coolColored = cools && controlsHvac(climate);
   const rows = hasModeRow(hass, climate);
   // Without control of its HVAC mode (#159), the HVAC mode the thermostat shows picks the presets
   const shown = !controlsHvac(climate) && state && setpointModesOf(hass, climate).includes(state.state) ? state.state : null;
@@ -2587,7 +2589,7 @@ function overrideValueHtml(d, src, climate, attrs, loc, hass) {
       const value = targets[l.id];
       const on = !!d && !none && (picked ? picked === l.id
         : targetKind(target) === 'preset' && targetKind(value) === 'preset' && target.preset_mode != null && target.preset_mode === value.preset_mode);
-      return `<button data-act="override-preset" data-preset="${esc(l.id)}" class="${on ? 'on' : ''}" style="${chipStyle(l, cools ? 'cool' : mode)}">${esc(l.name)}</button>`;
+      return `<button data-act="override-preset" data-preset="${esc(l.id)}" class="${on ? 'on' : ''}" style="${chipStyle(l, coolColored ? 'cool' : mode)}">${esc(l.name)}</button>`;
     }).join('');
   // The override's own temperature: the preset's, heating or cooling, when it is known (not an open
   // window's frost setpoint, #112), or the temperature typed. A preset that cools without a value

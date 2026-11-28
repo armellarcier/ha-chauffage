@@ -4,12 +4,12 @@
 import { afterEach, beforeEach, describe, mock, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { WEEKEND, cleanup, createCard, fakeDialogManager, fakeHass, integrationData } from './helpers.mjs';
-import { $, $$, click, day, text } from './houses/dom.mjs';
+import { $, $$, click, day, rgb, text } from './houses/dom.mjs';
 import * as heaterAndAtelier from './houses/heater-and-atelier.mjs';
 
 afterEach(() => cleanup());
 
-const { AC_MODES, OWN, SUMMER, cardOf, chips, lastCall, select, setup } = heaterAndAtelier;
+const { AC_MODES, OWN, PRESET_COLORS, SUMMER, cardOf, chips, lastCall, select, setup } = heaterAndAtelier;
 // The calls of the setting, without the panel's other calls (its dashboards)
 const hvacCalls = (hass) => hass.events.filter((m) => m.type === 'chauffage/hvac_mode_control/set');
 const ATELIER = 'climate.atelier';
@@ -60,6 +60,15 @@ describe('without control of the HVAC mode, the card offers none', () => {
       assert.ok(!chips(card, '.override-ed').includes('Éteint'));
       click(card, '.override-ed [data-act="override-preset"][data-preset="boost"]');
       assert.deepEqual(lastCall(hass).override.target, OWN('boost'));
+    });
+
+    test('switched to cool by hand, its presets keep their color: no slot cools', () => {
+      const hass = setup({ thermostats: without(ATELIER), planned: { [ATELIER]: { preset: 'comfort', hvac_mode: null } } });
+      hass.states[ATELIER].state = 'cool';
+      const card = cardOf(hass);
+      card._action('override-new', { climate: ATELIER });
+      const comfort = $(card, '.override-ed [data-act="override-preset"][data-preset="comfort"]');
+      assert.equal(comfort.style.background, rgb(PRESET_COLORS.comfort));
     });
 
     test('a new override does not say when Éteint would end: there is no Éteint', () => {
