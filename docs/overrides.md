@@ -112,7 +112,7 @@ HVAC mode*. Chauffage then leaves the HVAC mode to you, as before version 0.10.
 A setpoint changed by hand is still an override.
 
 **Where to set it.** For the whole house, open the ⚙ of the Chauffage panel. For one thermostat,
-open its page in the panel, then choose *As the house*, *On* or *Off*.
+open its page in the panel, then its ⚙, and choose *As the house*, *On* or *Off*.
 
 **Your weeks change.** Before the setting turns off, the panel lists the slots that change. You
 then confirm or cancel. A slot without a preset, such as *Off* or *Fan only*, is removed, and

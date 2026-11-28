@@ -592,6 +592,19 @@ future contributor might question.
     such a thermostat an HVAC mode.
   - **The panel holds the setting, not an entity.** A change from an entity or an automation
     could not show the user what the conversion changes.
+  - **The owner's UX decisions of 2026-11-28:**
+    - **The "New" notice of the panel points to the setting**, not to pausing the control: "To
+      keep it off, turn off *Control the HVAC mode*." A *Settings* button, next to the close
+      button, opens the settings dialog at that setting.
+    - **A thermostat's own setting is behind a ⚙ on its page**, not in a menu on the page: it is
+      set almost once. The ⚙ opens a small dialog with the thermostat's setting (as the house, on
+      or off) and the same list of the slots that change before it turns off. The ⚙ matches the
+      panel's own ⚙ for the house's settings.
+    - **A preset keeps both temperatures**, when heating and when cooling: an air conditioner
+      without control still gets the cooling value when it is switched to cool by hand. What
+      only cooling slots use is hidden while no thermostat whose HVAC mode Chauffage controls
+      can cool: the preset's color when cooling, and the refusal "used when cooling in a
+      schedule". The cooling temperature keeps its rule: shown when a thermostat can cool.
   - *Claude's proposal, to confirm:* a converted slot keeps its fan and its vanes, which are not
     an HVAC mode.
   - *Claude's proposals, made while implementing, to confirm:*
@@ -617,8 +630,10 @@ future contributor might question.
       without a preset is dropped, and the slot before it goes on. At midnight, the day has no
       slot before: the next slot starts at midnight, where the conversion of the weeks takes
       the last slot of the day before.
-    - **The panel shows the setting** as two choices in the settings dialog, and as a list *As
-      the house (on)*, *On*, *Off* at the top of a thermostat's sheet.
+    - **The panel shows the setting** as two choices in the settings dialog. A thermostat's
+      dialog shows three: *As the house (on)*, *On*, *Off*.
+    - **The thermostat's dialog is the settings dialog**, with only the section *Control the
+      HVAC mode*, titled with the thermostat's name.
   - *Claude's proposals, made while porting to the rewrite (0.11), to confirm:*
     - **The reader takes the setting**: `ThermostatGateway.read` and the learner read a
       thermostat with whether Chauffage controls its HVAC mode. `Settings` holds the house's

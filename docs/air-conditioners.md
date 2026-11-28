@@ -32,7 +32,8 @@ then tap *All heat* or *All cool*. The heating and cooling slots of the week tak
 mode. The other slots stay as they are, for example an *Off* slot. Tap *Save* to keep the
 change.
 
-**Colors.** To change the color of a preset when cooling, open the *Presets* tab.
+**Colors.** To change the color of a preset when cooling, open the *Presets* tab. The color when
+cooling is there while Chauffage controls the HVAC mode of an air conditioner.
 
 **Summer and winter.** Create a *Summer* schedule as a copy of your *Winter* schedule, and set
 its slots to *Cool*. To change season, activate the other schedule. You can activate it by hand,
