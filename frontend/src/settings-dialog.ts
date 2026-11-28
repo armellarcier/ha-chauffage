@@ -224,6 +224,7 @@ export class ChauffageSettingsDialog extends LitElement {
     this._thermostat = (params && (params as any).thermostat) || null;
     this._hvacAsk = null;
     this._hvacError = null;
+    this._hvacBusy = false;
     seenNewSetting(this.hass);
     this._unlisten = client.listen(() => this.requestUpdate());
     // Home Assistant's own dialog when the page has it, else the browser's. Home Assistant's

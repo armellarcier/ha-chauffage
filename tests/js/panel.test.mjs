@@ -360,6 +360,17 @@ describe('the Chauffage panel', () => {
       assert.ok($(el, '.new-off'), 'the notice stays until it is closed');
     });
 
+    test('the notice names the setting, and offers Réglages only to who may change the settings (#159)', async () => {
+      const el = await panel(setup(), '/thermostats');
+      assert.equal(text($(el, '.new-off em')), 'Contrôler le mode HVAC');
+      el.remove();
+      const hass = setup({ data: { ...integrationData({ weeks: WEEKS }), access_level: 'plan' } });
+      hass.user = { is_admin: false };
+      const planner = await panel(hass, '/thermostats');
+      assert.ok($(planner, '.new-off'), 'the notice');
+      assert.deepEqual($$(planner, '.new-off .btn').map(text), ['Fermer']);
+    });
+
     test('closed, it stays closed on this browser', async () => {
       const el = await panel(setup(), '/thermostats');
       $(el, '.new-off [data-close-notice]').click(); await settle();

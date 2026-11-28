@@ -109,9 +109,9 @@ const PANEL_CSS = `
   .notice-btns { display:flex; flex-wrap:wrap; gap:8px; margin-left:auto; }
   .next-steps li > div { margin:4px 0 8px; }
   .crumbs { display:flex; align-items:baseline; gap:8px; min-width:0; }
-  .crumbs a { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:inherit; opacity:.8; text-decoration:none; }
+  .crumbs a { flex:0 1000 auto; min-width:1.5em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:inherit; opacity:.8; text-decoration:none; }
   .crumbs a:hover { opacity:1; text-decoration:underline; }
-  .crumbs span:last-child { flex-shrink:0; max-width:70%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .crumbs span:last-child { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .crumbs .sep { flex-shrink:0; }
   .sep { opacity:.6; }
   /* The header, aligned with the surface below: the tile top right, the rest on the left; on
@@ -434,7 +434,7 @@ export class ChauffagePanel extends LitElement {
       return html`<div class="toolbar">${menu}
           <nav class="title crumbs"><a href="/chauffage/${built.list}" data-navigate="/chauffage/${built.list}">${t(list[1])}</a>
             <span class="sep">›</span><span data-fill="crumb">${page.notice ? nothing : route.sheet === 'schedule' ? src.scheduleName(route.id) : this._name(route.id)}</span></nav>
-          ${src.editable && !page.notice ? html`${route.sheet === 'thermostat' ? html`<button class="page-more" data-thermostat-settings title=${t('thermostatSettings')} aria-label=${t('thermostatSettings')}><ha-icon icon="mdi:cog"></ha-icon></button>` : nothing}<button class="page-more" data-page-menu title=${t('moreActions')} aria-label=${t('moreActions')}>⋮</button>` : nothing}
+          ${src.editable && !page.notice ? html`${route.sheet === 'thermostat' ? html`<button class="page-more" data-thermostat-settings title=${t('pageSettings')} aria-label=${t('pageSettings')}><ha-icon icon="mdi:cog"></ha-icon></button>` : nothing}<button class="page-more" data-page-menu title=${t('moreActions')} aria-label=${t('moreActions')}>⋮</button>` : nothing}
           <div data-fill="page-menu">${this._pageMenuTemplate(route)}</div>
         </div>`;
     }
@@ -512,9 +512,12 @@ export class ChauffagePanel extends LitElement {
     }
     // An existing user never sees the next steps: the new off behavior (#91) and the new
     // setting (#83, the access level for an admin, #99) are told once each
-    return html`${notice ? html`<div class="notice new-off"><span>${t('newOffNotice')}
+    // The new off notice names the setting that keeps a thermostat off (#159), and opens it for who
+    // may change the settings
+    const [before, after] = t('newOffNotice', { setting: '\u0001' }).split('\u0001');
+    return html`${notice ? html`<div class="notice new-off"><span>${before}<em>${t('hvacControlTitle')}</em>${after}
             <a href=${DOC_OFF_BY_HAND[makeLocale(this.hass).lang] || DOC_OFF_BY_HAND.en} target="_blank" rel="noopener">${t('readMore')}</a></span>
-            <span class="notice-btns"><button class="btn" data-open-settings="hvac">${t('pageSettings')}</button>
+            <span class="notice-btns">${src.editable ? html`<button class="btn" data-open-settings="hvac">${t('pageSettings')}</button>` : nothing}
             <button class="btn" data-close-notice>${t('nextClose')}</button></span></div>` : nothing}${
       setting ? html`<div class="notice new-setting"><span>${t(src.admin ? 'newAccessNotice' : 'newSettingNotice')}
             <a href=${panelPath('settings')} data-open-settings=${src.admin ? 'access' : ''}>${t('pageSettings')}</a></span>

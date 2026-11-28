@@ -26,9 +26,10 @@ function overrideValue(d, src, climate, attrs, loc, hass, edit) {
   // Fan only, dry or auto: an override that sets it and no setpoint
   const idle = !off && NO_PRESET_MODES.includes(target.hvac_mode) && !('temperature' in target) && !('preset_mode' in target) ? target.hvac_mode : null;
   const picked = d && d.preset && targets[d.preset] ? d.preset : null; // not a preset deleted since
-  // The presets in their cool color while the override cools (a heater's: while it does)
+  // The presets in their cool color while the override cools (a heater's: while it does). Not
+  // without control of its HVAC mode (#159): the color when cooling is the cooling slots'
   const state = stateOf(hass, climate);
-  const cools = mode ? mode === 'cool' : overrideHvac(d) === 'cool' || (!overrideHvac(d) && !!state && state.state === 'cool');
+  const cools = controlsHvac(hass, climate) && (mode ? mode === 'cool' : overrideHvac(d) === 'cool' || (!overrideHvac(d) && !!state && state.state === 'cool'));
   const rows = hasModeRow(hass, climate);
   // Without control of its HVAC mode (#159), the HVAC mode the thermostat shows picks the presets
   const shown = !controlsHvac(hass, climate) && state && setpointModesOf(hass, climate).includes(state.state) ? state.state : null;

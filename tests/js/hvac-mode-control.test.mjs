@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, mock, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { WEEKEND, cleanup, createView, fakeDialogManager, fakeHass, integrationData } from './helpers.mjs';
-import { $, $$, act, click, control, copyDay, day, drawn, openMenu, openOverride, pasteDay, settle, text } from './driver.mjs';
+import { $, $$, act, applyCell, click, control, copyDay, day, drawn, openMenu, openOverride, pasteDay, rgb, settle, text } from './driver.mjs';
 import * as heaterAndAtelier from './houses/heater-and-atelier.mjs';
 
 afterEach(() => cleanup());
@@ -223,7 +223,7 @@ describe('the setting of one thermostat, behind the ⚙ of its page in the panel
     const el = await panel(hass, '/thermostats/climate.salon');
     assert.equal($(el, '.head [data-hvac-control]'), null);
     const gear = $(el, '.toolbar [data-thermostat-settings]');
-    assert.equal(gear.getAttribute('aria-label'), 'Réglages du thermostat');
+    assert.equal(gear.getAttribute('aria-label'), 'Réglages');
     gear.click();
     await settle();
     assert.deepEqual(manager.shown.map((d) => [d.dialogTag, d.dialogParams.thermostat]), [['chauffage-settings-dialog', SALON]]);
@@ -242,6 +242,37 @@ describe('the setting of one thermostat, behind the ⚙ of its page in the panel
     data.thermostats[SALON].hvac_mode_control = false;
     data.hvac_mode_control = true;
     assert.equal(checked(await dialog(fakeHass({ data }))), 'off');
+  });
+
+  const OFF_SLOT_REMOVED = [{ entity_id: SALON, schedule: 'normal', day: 0, start: '22:30', preset: null, hvac_mode: 'off', change: 'removed' }];
+
+  test('a question left unanswered is gone when the dialog opens again', async () => {
+    const hass = fakeHass({ reply: (msg) => (msg.type === 'chauffage/hvac_mode_control/set' ? { changes: OFF_SLOT_REMOVED } : null) });
+    const el = await dialog(hass);
+    await choose(el, 'off');
+    el.closeDialog();
+    el.showDialog({ thermostat: SALON });
+    await settle();
+    assert.equal($(el, '.hvac-ask'), null);
+    assert.equal(checked(el), 'house');
+  });
+
+  test('a late answer for a thermostat does not reach the dialog opened again for the house', async () => {
+    let answer;
+    const hass = fakeHass({ reply: (msg) => (msg.type === 'chauffage/hvac_mode_control/set'
+      ? new Promise((resolve) => { answer = () => resolve({ changes: OFF_SLOT_REMOVED }); }) : null) });
+    const el = await dialog(hass);
+    const radio = $$(el, '[data-hvac-control]').find((r) => r.value === 'off');
+    radio.checked = true;
+    radio.dispatchEvent(new Event('change', { bubbles: true }));
+    el.closeDialog();
+    el.showDialog({});
+    await settle();
+    answer();
+    await settle();
+    await settle();
+    assert.equal($(el, '.hvac-ask'), null);
+    assert.ok($$(el, '[data-hvac-control]').every((r) => !r.disabled));
   });
 
   test('turning it off for the thermostat asks first, for this thermostat only', async () => {
@@ -276,6 +307,33 @@ describe('the presets tab without a thermostat whose HVAC mode Chauffage control
     assert.equal($(view, '.cell-ed [data-cell-cool-color]'), null);
     assert.doesNotMatch(fields, /Couleur en chauffe|Couleur en clim/);
     assert.ok($(view, '.cell-ed .pv-name [data-cell-color]'), 'its color, beside its name');
+  });
+
+  test('a temperature when cooling can be cleared: no slot cools', async () => {
+    const hass = setup({ thermostats: without(ATELIER), atelier: ['00:00 eco', '14:00 comfort'] });
+    hass.data.presets = hass.data.presets.map((p) => (p.id === 'comfort' ? { ...p, cool_temperature: 25 } : p));
+    hass.data.targets[ATELIER] = {};
+    const view = await open(hass);
+    click(view, '[data-kind="preset"][data-preset="comfort"]'); await settle();
+    const cool = $(view, '.cell-ed [data-cell-cool]');
+    cool.value = '';
+    cool.dispatchEvent(new window.Event('input', { bubbles: true }));
+    await applyCell(view);
+    assert.equal($(view, '.cell-ed .pv-error'), null);
+    assert.equal('cool_temperature' in lastCall(hass).presets.find((p) => p.id === 'comfort'), false);
+  });
+
+  test('the legend of the week shows no color when cooling: no slot cools', async () => {
+    const card = await cardOf(setup({ thermostats: without(ATELIER) }), { show: [ATELIER] });
+    assert.equal($$(card, '.legend i.cool').length, 0);
+  });
+
+  test('the override block of an air conditioner switched to cool by hand shows the presets in their own color', async () => {
+    const hass = setup({ thermostats: without(ATELIER) });
+    hass.states[ATELIER].state = 'cool';
+    const card = await cardOf(hass);
+    await openOverride(card, ATELIER);
+    assert.equal(control(card, 'override-preset', { preset: 'eco' }).style.background, rgb('#43a047'));
   });
 
   test('an air conditioner whose HVAC mode Chauffage controls keeps the color when cooling', async () => {

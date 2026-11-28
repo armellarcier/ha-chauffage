@@ -73,10 +73,13 @@ export async function chooseHvacControl(host, value, climate) {
   host.requestUpdate();
   try {
     const preview = await send(value, climate, true);
+    // The dialog opened meanwhile for another thermostat, or for the house: the answer is not its
+    if ((host._thermostat || null) !== climate) return;
     const changes = (preview && preview.changes) || [];
     if (changes.length) host._hvacAsk = { value, climate, changes };
     else await send(value, climate);
   } catch (err) {
+    if ((host._thermostat || null) !== climate) return;
     host._hvacError = errorText(makeLocale(host.hass).t, err);
   }
   host._hvacBusy = false;
