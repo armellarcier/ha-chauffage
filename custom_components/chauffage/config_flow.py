@@ -13,7 +13,7 @@ from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 
@@ -90,6 +90,10 @@ class ChauffageOptionsFlow(OptionsFlow):
             title = (user_input.get(CONF_SIDEBAR_TITLE) or "").strip()
             if len(title) > SIDEBAR_TITLE_MAX:
                 errors[CONF_SIDEBAR_TITLE] = "sidebar_title_too_long"
+            # Turned on or off, the weeks are converted by Chauffage: it must be running (#159)
+            value = user_input.get(CONF_HVAC_MODE_CONTROL, DEFAULT_HVAC_MODE_CONTROL)
+            if self._runtime() is None and value != self.config_entry.options.get(CONF_HVAC_MODE_CONTROL, DEFAULT_HVAC_MODE_CONTROL):
+                errors[CONF_HVAC_MODE_CONTROL] = "not_running"
             if not errors:
                 data = {**self.config_entry.options, **user_input}
                 if duration is not None:
@@ -143,11 +147,17 @@ class ChauffageOptionsFlow(OptionsFlow):
         })
         return self.async_show_form(step_id="init", data_schema=schema, errors=errors)
 
+    def _runtime(self) -> Any:
+        """Chauffage's runtime, while the entry is loaded."""
+        if self.config_entry.state is not ConfigEntryState.LOADED:
+            return None
+        return getattr(self.config_entry, "runtime_data", None)
+
     async def _save(self, data: dict[str, Any]) -> ConfigFlowResult:
         """Saves the options. *Control the HVAC mode* changed (#159) goes through the runtime, as
         from the panel: the weeks are converted and the thermostats realigned. Turning it off
         first lists the slots that change (async_step_hvac_mode_control), when there are any."""
-        runtime = getattr(self.config_entry, "runtime_data", None)
+        runtime = self._runtime()
         value = data.get(CONF_HVAC_MODE_CONTROL, DEFAULT_HVAC_MODE_CONTROL)
         if runtime is not None and value != runtime.hvac_mode_control:
             _, changes = runtime.hvac_mode_changes(value)
@@ -162,9 +172,12 @@ class ChauffageOptionsFlow(OptionsFlow):
         """The slots that change when the house stops controlling the HVAC mode. Submitted, the
         weeks are converted and the options saved. Closed, nothing changes."""
         if user_input is None:
-            text = changes_text(self.hass, self.config_entry.runtime_data, self._changes)
+            text = changes_text(self.hass, self._runtime(), self._changes)
             return self.async_show_form(step_id="hvac_mode_control", description_placeholders={"changes": text})
-        await self.config_entry.runtime_data.set_hvac_mode_control(self._data[CONF_HVAC_MODE_CONTROL])
+        runtime = self._runtime()
+        if runtime is None:  # Chauffage stopped meanwhile: nothing to convert with
+            return self.async_abort(reason="not_running")
+        await runtime.set_hvac_mode_control(self._data[CONF_HVAC_MODE_CONTROL])
         return self.async_create_entry(data=self._data)
 
 
@@ -182,6 +195,11 @@ TEXTS = {
                        "dry": "Déshum.", "auto": "Auto", "fan_only": "Ventilation"},
     },
 }
+
+
+def markdown_text(text: str) -> str:
+    """A name, as plain text in Markdown: its `*`, `_`, `[` and the like are not markup."""
+    return "".join(f"\\{c}" if c in "\\`*_[]<>#|" else c for c in text)
 
 
 def days_text(days: list[int], names: list[str]) -> str:
@@ -207,13 +225,13 @@ def changes_text(hass: Any, runtime: Any, changes: list[dict[str, Any]]) -> str:
         slots.setdefault((c["start"], c["preset"], c["hvac_mode"], c["change"]), []).append(c["day"])
 
     def preset(preset_id: str) -> str:
-        return (runtime.presets_by_id.get(preset_id) or {}).get("name", preset_id)
+        return markdown_text((runtime.presets_by_id.get(preset_id) or {}).get("name", preset_id))
 
     lines = []
     for (entity_id, schedule), slots in groups.items():
         state = hass.states.get(entity_id)
         name = (state and state.attributes.get("friendly_name")) or entity_id
-        lines.append(f"- **{name}** · {schedules.get(schedule, schedule)}")
+        lines.append(f"- **{markdown_text(name)}** · {markdown_text(schedules.get(schedule, schedule))}")
         for (start, preset_id, mode, change), days in sorted(slots.items(), key=lambda item: item[0][0]):
             before = ", ".join(x for x in (preset(preset_id) if preset_id else None,
                                            texts["hvac_modes"].get(mode, mode) if mode else None) if x)

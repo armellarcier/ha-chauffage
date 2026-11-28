@@ -47,7 +47,11 @@
     },
     "error": {
       "invalid_override_duration": "Choose a whole number of minutes.",
-      "sidebar_title_too_long": "Choose a name of 40 characters at most."
+      "sidebar_title_too_long": "Choose a name of 40 characters at most.",
+      "not_running": "Chauffage is not running: this setting cannot change now."
+    },
+    "abort": {
+      "not_running": "Chauffage stopped: nothing changed."
     }
   },
   "entity": {

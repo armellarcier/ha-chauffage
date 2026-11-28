@@ -366,6 +366,30 @@ async def test_the_list_of_the_options_says_which_slots_lose_their_hvac_mode(ben
     bench.hass.config_entries.options.async_abort(result["flow_id"])
 
 
+async def test_the_options_cannot_change_the_control_while_chauffage_is_not_running(bench: Bench):
+    """Its weeks could not be converted: the setting stays as it is, and the form says why."""
+    await start(bench, day=NIGHT_OFF, options=None)
+    await bench.hass.config_entries.async_unload(bench.entry.entry_id)
+    await bench.hass.async_block_till_done()
+    result = await options_with(bench, hvac_mode_control=False)
+    assert result["type"] == "form" and result["errors"] == {"hvac_mode_control": "not_running"}
+    assert bench.entry.options.get("hvac_mode_control", True) is True
+
+
+async def test_chauffage_stopped_during_the_list_of_the_options_changes_nothing(bench: Bench):
+    await start(bench, day=NIGHT_OFF, options=None)
+    result = await options_with(bench, hvac_mode_control=False)
+    await bench.hass.config_entries.async_unload(bench.entry.entry_id)
+    await bench.hass.async_block_till_done()
+    result = await bench.hass.config_entries.options.async_configure(result["flow_id"], {})
+    assert (result["type"], result["reason"]) == ("abort", "not_running")
+    assert bench.entry.options.get("hvac_mode_control", True) is True
+
+
+def test_a_name_in_the_list_of_the_options_stays_plain_text():
+    assert config_flow.markdown_text("*Salle_de_bain* [1]") == "\\*Salle\\_de\\_bain\\* \\[1\\]"
+
+
 def test_the_days_of_a_slot_in_a_row_are_a_range():
     names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
     assert config_flow.days_text([4, 0, 1, 2, 3], names) == "Mon–Fri"
