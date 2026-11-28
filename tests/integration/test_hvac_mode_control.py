@@ -14,7 +14,7 @@ from hvac_helpers import (
     AC_MODES, BUREAU, COOL, HEAT, NIGHT_OFF, OFF, SALON, ac, clear, override, salon, sent_to, start_ac,
 )
 
-from custom_components.chauffage import engine, model
+from custom_components.chauffage import config_flow, engine, model
 
 
 @pytest.fixture(params=KINDS)
@@ -314,6 +314,97 @@ async def test_turning_the_control_off_realigns_the_thermostats(bench: Bench):
     await start_ac(bench, "23:00", NIGHT_OFF, state="off")
     await set_control(bench, False)
     assert bench.powered() == {} and bench.applied() == {}
+
+
+# ----- the options of the integration (the owner's decision of 2026-11-28) -----
+
+async def options_with(bench: Bench, **user_input) -> dict:
+    """The options flow, its form submitted with the options as they are, and `user_input`."""
+    options = bench.hass.config_entries.options
+    flow = await options.async_init(bench.entry.entry_id)
+    defaults = {str(key): key.default() for key in flow["data_schema"].schema if callable(getattr(key, "default", None))}
+    result = await options.async_configure(flow["flow_id"], {**defaults, **user_input})
+    await bench.hass.async_block_till_done()
+    return result
+
+
+async def test_the_options_offer_the_control_of_the_hvac_mode_next_to_the_overrides(bench: Bench):
+    await start(bench, options=None)
+    flow = await bench.hass.config_entries.options.async_init(bench.entry.entry_id)
+    keys = [str(key) for key in flow["data_schema"].schema]
+    assert keys[keys.index("off_override_end") + 1] == "hvac_mode_control"
+    key = next(k for k in flow["data_schema"].schema if str(k) == "hvac_mode_control")
+    assert key.default() is True
+    bench.hass.config_entries.options.async_abort(flow["flow_id"])
+
+
+async def test_turning_the_control_off_in_the_options_lists_the_slots_that_change_first(bench: Bench):
+    """As the panel does: by thermostat and schedule, a slot's days together. Submitting the
+    list converts the weeks."""
+    await start(bench, day=NIGHT_OFF, options=None, friendly_name="Salon")
+    result = await options_with(bench, hvac_mode_control=False)
+    assert (result["type"], result["step_id"]) == ("form", "hvac_mode_control")
+    assert result["description_placeholders"]["changes"] == (
+        "- **Salon** · Normal\n"
+        "  - Mon–Sun · 00:00 · Off → removed\n"
+        "  - Mon–Sun · 22:30 · Off → removed")
+    assert bench.runtime.hvac_mode_control is True, "nothing changed yet"
+    assert bench.runtime.weeks[SALON]["normal"][0] == NIGHT_OFF
+    result = await bench.hass.config_entries.options.async_configure(result["flow_id"], {})
+    await bench.hass.async_block_till_done()
+    assert result["type"] == "create_entry"
+    assert bench.runtime.hvac_mode_control is False
+    assert bench.runtime.weeks[SALON]["normal"][0] == [["00:00", "comfort"], ["06:30", "comfort"], ["08:30", "eco"], ["17:30", "comfort"]]
+
+
+async def test_the_list_of_the_options_says_which_slots_lose_their_hvac_mode(bench: Bench):
+    await start_ac(bench, day=[["00:00", "eco"], ["06:30", "comfort", COOL]])
+    result = await options_with(bench, hvac_mode_control=False)
+    assert result["description_placeholders"]["changes"].splitlines()[1:3] == [
+        "  - Mon–Sun · 00:00 · Eco, Heat → Eco",
+        "  - Mon–Sun · 06:30 · Comfort, Cool → Comfort"]
+    bench.hass.config_entries.options.async_abort(result["flow_id"])
+
+
+def test_the_days_of_a_slot_in_a_row_are_a_range():
+    names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    assert config_flow.days_text([4, 0, 1, 2, 3], names) == "Mon–Fri"
+    assert config_flow.days_text([5, 6], names) == "Sat, Sun"
+    assert config_flow.days_text([0, 2, 3, 4, 6], names) == "Mon, Wed–Fri, Sun"
+
+
+async def test_closing_the_list_in_the_options_changes_nothing(bench: Bench):
+    await start(bench, day=NIGHT_OFF, options=None)
+    result = await options_with(bench, hvac_mode_control=False, override_duration=30)
+    bench.hass.config_entries.options.async_abort(result["flow_id"])
+    await bench.hass.async_block_till_done()
+    assert bench.runtime.hvac_mode_control is True
+    assert bench.runtime.override_duration != 30
+    assert bench.runtime.weeks[SALON]["normal"][0] == NIGHT_OFF
+
+
+async def test_with_nothing_to_convert_the_options_turn_the_control_off_at_once(bench: Bench):
+    """No list to show: the options are saved. An override loses its HVAC mode, as from the panel."""
+    await start(bench, options=None)
+    await override(bench, entity_id=SALON, hvac_mode="off")
+    result = await options_with(bench, hvac_mode_control=False)
+    assert result["type"] == "create_entry"
+    assert bench.runtime.hvac_mode_control is False
+    assert bench.overrides() == {}
+
+
+async def test_the_options_turn_the_control_on_again(bench: Bench):
+    await start(bench)
+    result = await options_with(bench, hvac_mode_control=True)
+    assert result["type"] == "create_entry"
+    assert bench.runtime.hvac_mode_control is True
+
+
+async def test_the_list_of_the_options_speaks_the_language_of_home_assistant(bench: Bench):
+    bench.hass.config.language = "fr"
+    await start(bench, day=NIGHT_OFF, options=None, friendly_name="Salon")
+    result = await options_with(bench, hvac_mode_control=False)
+    assert result["description_placeholders"]["changes"].splitlines()[1] == "  - Lun–Dim · 00:00 · Éteint → supprimé"
 
 
 # ----- the engine -----

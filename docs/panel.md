@@ -16,9 +16,9 @@ The panel has three tabs:
   [activation rules](activation-rules.md) below the list of schedules.
 - **Presets.** Set what each preset does on each thermostat. See [Presets](presets.md).
 
-**Settings.** Open the ⚙ at the top right of the panel to set the override duration, the end of
-overrides, how long a thermostat turned off stays off, whether Chauffage controls the HVAC mode,
-and the access level. See [Overrides](overrides.md) and
+**Settings.** Open the ⚙ at the top right of the panel to set whether Chauffage controls the HVAC mode, the
+override duration, the end of overrides, how long a thermostat turned off stays off, and the
+access level. See [Overrides](overrides.md) and
 [Turn rooms on and off yourself](overrides.md#turn-rooms-on-and-off-yourself). To change the other [options](#options), click *Other Chauffage
 options* at the foot of the settings. The link opens the integration's page, where you click
 *Configure*. Only administrators see the link.
@@ -93,7 +93,8 @@ To change the options, go to Settings → Devices & services → Chauffage → *
 - **End of overrides.** *For the override duration* by default. See
   [Choose how long an override lasts](overrides.md#choose-how-long-an-override-lasts).
 - **Turned off.** How long a thermostat turned off stays off, *Until the next slot* by default.
-  See [Turn a thermostat off by hand](overrides.md#turn-a-thermostat-off-by-hand).
+$1- **Control the HVAC mode.** On by default. See
+  [Turn rooms on and off yourself](overrides.md#turn-rooms-on-and-off-yourself).
 - **Use the thermostats' presets.** On by default. Turn this option off to drive every
   thermostat with temperatures that you set in Chauffage.
 - **Show Chauffage in the sidebar.** On by default. If you hide Chauffage from the

@@ -171,6 +171,11 @@ describe('the setting in the settings dialog, for the house', () => {
     return hass;
   };
 
+  test('the setting comes first, before the other settings', () => {
+    const el = settings(house());
+    assert.ok($(el, '.body > section').classList.contains('hvac-settings'));
+  });
+
   test('a heading, two choices, on by default, and one line that says what off means', () => {
     const el = settings(house());
     assert.equal(text($(el, '.hvac-settings h3')), 'Contrôler le mode HVAC');

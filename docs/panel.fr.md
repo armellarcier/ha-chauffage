@@ -18,9 +18,9 @@ Le panneau a trois onglets :
 - **Préréglages.** Réglez ce que fait chaque préréglage sur chaque thermostat. Voir
   [Préréglages](presets.fr.md).
 
-**Réglages.** Ouvrez le bouton ⚙, en haut à droite du panneau, pour régler la durée des
-dérogations, la fin des dérogations, combien de temps un thermostat éteint le reste, si
-Chauffage contrôle le mode HVAC, et le niveau d'accès. Voir [Dérogations](overrides.fr.md) et
+**Réglages.** Ouvrez le bouton ⚙, en haut à droite du panneau, pour régler si Chauffage
+contrôle le mode HVAC, la durée des dérogations, la fin des dérogations, combien de temps un
+thermostat éteint le reste, et le niveau d'accès. Voir [Dérogations](overrides.fr.md) et
 [Allumer et éteindre les pièces vous-même](overrides.fr.md#allumer-et-éteindre-les-pièces-vous-même). Pour changer les autres
 [options](#options), cliquez sur *Autres options de Chauffage*, en bas des réglages. Le lien
 ouvre la page de l'intégration, où vous cliquez sur *Configurer*. Seuls les administrateurs
@@ -103,7 +103,8 @@ Pour changer les options, allez dans Paramètres → Appareils et services → C
   [Choisir combien de temps dure une dérogation](overrides.fr.md#choisir-combien-de-temps-dure-une-dérogation).
 - **Thermostat éteint.** Combien de temps un thermostat éteint le reste, *Jusqu'au prochain
   créneau* par défaut. Voir
-  [Éteindre un thermostat à la main](overrides.fr.md#éteindre-un-thermostat-à-la-main).
+$1- **Contrôler le mode HVAC.** Activé par défaut. Voir
+  [Allumer et éteindre les pièces vous-même](overrides.fr.md#allumer-et-éteindre-les-pièces-vous-même).
 - **Utiliser les préréglages des thermostats.** Activée par défaut. Désactivez cette option pour
   piloter tous les thermostats avec des températures que vous réglez dans Chauffage.
 - **Afficher Chauffage dans la barre latérale.** Activée par défaut. Si vous masquez Chauffage de la

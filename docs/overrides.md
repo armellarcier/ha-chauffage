@@ -111,10 +111,12 @@ HVAC mode*. Chauffage then leaves the HVAC mode to you, as before version 0.10.
 
 A setpoint changed by hand is still an override.
 
-**Where to set it.** For the whole house, open the ⚙ of the Chauffage panel. For one thermostat,
+**Where to set it.** For the whole house, open the ⚙ of the Chauffage panel, or the
+integration's options in Settings → Devices & services → Chauffage → *Configure*. For one thermostat,
 open its page in the panel, tap its ⚙, then choose *As the house*, *On* or *Off*.
 
-**Your weeks change.** Before the setting turns off, the panel lists the slots that change. You
+**Your weeks change.** Before the setting turns off, the panel or the options list the slots that
+change. You
 then confirm or cancel. A slot without a preset, such as *Off* or *Fan only*, is removed, and
 the slot before it goes on. A *Heat* or *Cool* slot keeps its preset and loses its HVAC mode.
 Turning the setting back on changes nothing in the weeks.

@@ -552,8 +552,8 @@ future contributor might question.
   resuming turns it on. The author of VTherm asked for every HVAC-mode override to be optional,
   not only off.
   - **The setting *Control the HVAC mode* is on by default**, so nothing changes on upgrade. It
-    is set for the house in the settings dialog of the panel, and each thermostat can follow the
-    house or say on or off.
+    is set for the house in the settings dialog of the panel and in the options flow, and each
+    thermostat can follow the house or say on or off.
   - **Off, the thermostat is scheduled as a thermostat with a single HVAC mode, as in 0.9.**
     Chauffage never sends it an HVAC mode. Its slots and its overrides choose no HVAC mode, and
     the card offers none. A change of HVAC mode by hand is never an override. A thermostat
@@ -574,9 +574,12 @@ future contributor might question.
   - **A slot pasted on such a thermostat is converted the same way**, as an edited slot already
     loses an HVAC mode its thermostat cannot follow. The integration refuses a week that gives
     such a thermostat an HVAC mode.
-  - **The panel holds the setting, not an entity.** A change from an entity or an automation
-    could not show the user what the conversion changes.
-  - **The owner's decisions of 2026-11-28, after trying the setting:**
+  - **The panel and the options flow hold the setting, not an entity** (the options flow: the
+    owner's decision of 2026-11-28). A change from an entity or an automation could not show
+    the user what the conversion changes. The options flow shows it in a confirmation step:
+    submitting it converts the weeks, closing it cancels everything. With nothing to convert,
+    there is no confirmation step.
+$1    - **The setting comes first in the settings dialog of the panel**, before the other settings.
     - **The notice of the new off behavior names the setting.** It says to turn off *Control the
       HVAC mode* to keep a thermostat off, not to pause its control, and its *Settings* button
       opens the settings dialog at that setting.

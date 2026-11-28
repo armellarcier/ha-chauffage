@@ -8901,7 +8901,7 @@ const SETTINGS_CSS = `
   .section-head { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; }
   .access-settings .saved { color:var(--success-color, #43a047); font-size:14px; }
   .off-end-title { margin:14px 0 4px; font-size:14px; font-weight:500; }
-  .hvac-settings { margin-top:16px; }
+  .hvac-settings + .override-settings { margin-top:16px; }
   .hvac-settings h3 { margin:12px 0 4px; font-size:16px; font-weight:500; }
   .hvac-settings .note { margin:4px 0 8px; font-size:13px; line-height:1.4; color:var(--secondary-text-color); }
   ${HVAC_ASK_STYLE}
@@ -9036,12 +9036,13 @@ class ChauffageSettingsDialog extends HTMLElement {
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="${MDI.close}"></path></svg></button>`;
     const hvac = `<section class="hvac-settings"><h3>${esc(t('hvacControlTitle'))}</h3>
         <div data-fill="hvac"></div><p class="note">${esc(t('hvacControlHelp'))}</p><div data-fill="hvac-ask"></div></section>`;
-    // The duration's field stays across updates: only the parts under it are filled again
-    const body = this._climate ? `<div class="body">${hvac}</div>` : `<div class="body"><section class="override-settings"><h3>${esc(t('overridesTitle'))}</h3>
+    // The control of the HVAC mode first (the owner's decision, #159). The duration's field stays
+    // across updates: only the parts under it are filled again
+    const body = this._climate ? `<div class="body">${hvac}</div>` : `<div class="body">${hvac}<section class="override-settings"><h3>${esc(t('overridesTitle'))}</h3>
         <p class="intro">${esc(t('overrideEndIntro'))}</p>
         <div class="duration-row"><div class="duration-field"></div><span data-fill="settings-saved"></span></div>
         <div data-fill="settings"></div></section>
-        ${hvac}${this._accessHtml()}${this._footHtml()}</div>`;
+        ${this._accessHtml()}${this._footHtml()}</div>`;
     this.shadowRoot.innerHTML = `<style>${SETTINGS_CSS}</style>`;
     const HaDialog = customElements.get('ha-dialog');
     let frame;
