@@ -9,7 +9,6 @@ import { errorText } from './common.ts';
 import { groupPreference, historyPreference, saveGroupPreference, saveHistoryPreference } from './state/preferences.ts';
 import { linksByKeyboard, roundDurationText } from './fields.ts';
 import { hvacIconTemplate, slotModesOf } from './hvac.ts';
-import { HVAC_ASK_STYLE, chooseHvacControl, hvacAskTemplate, hvacChoiceOf } from './hvac-control.ts';
 import { makeLocale } from './i18n/locale.ts';
 import { deviceNamedLink, navigate, openDevice, openMoreInfo, openPanel, panelName, panelPath, placements, placesTemplate, thermostatDevices } from './links.ts';
 import { DOC_OFF_BY_HAND, LS_NEW_ACCESS, LS_NEW_OFF, LS_NEW_SETTING, openSettings, seenNewOff, seenNewSetting } from './settings-dialog.ts';
@@ -120,10 +119,6 @@ const PANEL_CSS = `
   .control { display:flex; align-items:center; gap:8px; margin-top:8px; }
   .about { font-size:14px; color:var(--secondary-text-color); }
   .about > div { padding:2px 0; }
-  .hvac-control { display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; margin-top:12px; font-size:14px; }
-  .hvac-control select { min-height:40px; max-width:100%; padding:0 8px; border:1px solid var(--divider-color);
-    border-radius:8px; background:var(--card-background-color, #fff); color:var(--primary-text-color); font:inherit; }
-  ${HVAC_ASK_STYLE}
   @media (min-width:600px) {
     .head { grid-template-columns:minmax(0, 1fr) minmax(240px, 320px); align-items:start; }
     .head .tile { order:0; grid-column:2; grid-row:1; }
@@ -221,11 +216,6 @@ export class ChauffagePanel extends LitElement {
   // …and the history of the measured temperature, as chosen on this device (as the cards)
   _historyOn = historyPreference();
   _picked = new Set<string>(); // the welcome: the thermostats ticked
-  // The setting Control the HVAC mode of a thermostat (#159): the question asked before it turns
-  // off (hvac-control.ts)
-  _hvacAsk: any = null;
-  _hvacBusy = false;
-  _hvacError: string | null = null;
 
   // Closing or reloading the browser's page with weeks not saved yet: the browser asks
   _onUnload = (e) => {
@@ -442,7 +432,7 @@ export class ChauffagePanel extends LitElement {
       return html`<div class="toolbar">${menu}
           <nav class="title crumbs"><a href="/chauffage/${built.list}" data-navigate="/chauffage/${built.list}">${t(list[1])}</a>
             <span class="sep">›</span><span data-fill="crumb">${page.notice ? nothing : route.sheet === 'schedule' ? src.scheduleName(route.id) : this._name(route.id)}</span></nav>
-          ${src.editable && !page.notice ? html`<button class="page-more" data-page-menu title=${t('moreActions')} aria-label=${t('moreActions')}>⋮</button>` : nothing}
+          ${src.editable && !page.notice ? html`${route.sheet === 'thermostat' ? html`<button class="page-more" data-thermostat-settings title=${t('thermostatSettings')} aria-label=${t('thermostatSettings')}><ha-icon icon="mdi:cog"></ha-icon></button>` : nothing}<button class="page-more" data-page-menu title=${t('moreActions')} aria-label=${t('moreActions')}>⋮</button>` : nothing}
           <div data-fill="page-menu">${this._pageMenuTemplate(route)}</div>
         </div>`;
     }
@@ -522,6 +512,7 @@ export class ChauffagePanel extends LitElement {
     // setting (#83, the access level for an admin, #99) are told once each
     return html`${notice ? html`<div class="notice new-off"><span>${t('newOffNotice')}
             <a href=${DOC_OFF_BY_HAND[makeLocale(this.hass).lang] || DOC_OFF_BY_HAND.en} target="_blank" rel="noopener">${t('readMore')}</a></span>
+            <button class="btn" data-open-settings="hvac">${t('pageSettings')}</button>
             <button class="btn" data-close-notice>${t('nextClose')}</button></div>` : nothing}${
       setting ? html`<div class="notice new-setting"><span>${t(src.admin ? 'newAccessNotice' : 'newSettingNotice')}
             <a href=${panelPath('settings')} data-open-settings=${src.admin ? 'access' : ''}>${t('pageSettings')}</a></span>
@@ -624,24 +615,7 @@ export class ChauffagePanel extends LitElement {
         <button class="btn${paused ? ' primary' : ''}" data-pause=${paused ? '0' : '1'}>${t(paused ? 'resumeShort' : 'pauseShort')}</button>
         ${paused ? html`<span class="badge paused">${t('paused')}</span>` : nothing}
       </div>
-      ${this._hvacControl(climate, src)}
       ${this._error ? html`<div class="error">${this._error}</div>` : nothing}`;
-  }
-
-  // Control the HVAC mode, for this thermostat (#159): as the house, on or off
-  _hvacControl(climate, src) {
-    const t = this._t;
-    const choice = (value) => (value === null ? 'house' : value ? 'on' : 'off');
-    const chosen = choice(hvacChoiceOf(this, src.ownHvacModeControl(climate)));
-    const options = [
-      ['house', t('hvacControlHouse', { value: t(src.hvacModeControl() ? 'hvacControlHouseOn' : 'hvacControlHouseOff') })],
-      ['on', t('hvacControlThermostatOn')], ['off', t('hvacControlOff')],
-    ];
-    const values = { house: null, on: true, off: false };
-    return html`<label class="hvac-control"><span>${t('hvacControlTitle')}</span>
-        <select data-hvac-control .value=${live(chosen)} ?disabled=${!src.editable || this._hvacBusy || !!this._hvacAsk}
-          @change=${(e) => chooseHvacControl(this, values[e.target.value], climate)}>${options.map(([value, label]) => html`<option value=${value} ?selected=${value === chosen}>${label}</option>`)}</select></label>
-      ${hvacAskTemplate(this)}`;
   }
 
   // How long a setpoint changed by hand lasts, as the settings of overrides say (#83)
@@ -694,7 +668,7 @@ export class ChauffagePanel extends LitElement {
       this.requestUpdate();
       return undefined;
     }
-    const el = e.target.closest('[data-page-menu], [data-forget], [data-forget-confirm], [data-forget-cancel], [data-leave-stay], [data-leave-discard], [data-leave-save], [data-sheet-save], [data-sheet-cancel], [data-copy-menu], [data-copy-to], [data-week-hvac], [data-more-info], [data-navigate], [data-device], [data-pause], [data-group-days], [data-history], [data-start], [data-close-next], [data-close-notice], [data-close-new-setting], [data-open-settings]');
+    const el = e.target.closest('[data-page-menu], [data-forget], [data-forget-confirm], [data-forget-cancel], [data-leave-stay], [data-leave-discard], [data-leave-save], [data-sheet-save], [data-sheet-cancel], [data-copy-menu], [data-copy-to], [data-week-hvac], [data-more-info], [data-navigate], [data-device], [data-pause], [data-group-days], [data-history], [data-start], [data-close-next], [data-close-notice], [data-close-new-setting], [data-open-settings], [data-thermostat-settings]');
     if (!el || !this.renderRoot.contains(el)) return undefined;
     e.preventDefault();
     const ds = el.dataset;
@@ -759,6 +733,11 @@ export class ChauffagePanel extends LitElement {
         const to = weekCards[ds.copyTo];
         this._copyMenu = null;
         if (from && to) to.receiveWeek(route.id, from.week(route.id), src.scheduleName(fromId));
+        return undefined;
+      }
+      // A thermostat's settings (#159), from the ⚙ of its page
+      if ('thermostatSettings' in ds) {
+        openSettings(this, this.hass, null, route.id);
         return undefined;
       }
       // The settings, on top of the panel: the notice of the new setting is then told

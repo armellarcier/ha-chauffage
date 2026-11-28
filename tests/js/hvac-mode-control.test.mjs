@@ -3,7 +3,7 @@
 // change first, and the user turns it off or cancels.
 import { afterEach, beforeEach, describe, mock, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { WEEKEND, cleanup, fakeHass, integrationData } from './helpers.mjs';
+import { WEEKEND, cleanup, createView, fakeDialogManager, fakeHass, integrationData } from './helpers.mjs';
 import { $, $$, act, click, control, copyDay, day, drawn, openMenu, openOverride, pasteDay, settle, text } from './driver.mjs';
 import * as heaterAndAtelier from './houses/heater-and-atelier.mjs';
 
@@ -182,7 +182,7 @@ describe('the setting in the settings dialog, for the house', () => {
   });
 });
 
-describe('the setting in a thermostat\'s sheet of the panel', () => {
+describe('the setting of one thermostat, behind the ⚙ of its page in the panel', () => {
   beforeEach(() => {
     window.loadCardHelpers = async () => ({ createCardElement: (config) => Object.assign(document.createElement('div'), { config }) });
   });
@@ -199,35 +199,56 @@ describe('the setting in a thermostat\'s sheet of the panel', () => {
     await settle();
     return el;
   };
-  const pick = async (el, value) => {
-    const select = $(el, '[data-hvac-control]');
-    select.value = value;
-    select.dispatchEvent(new Event('change', { bubbles: true }));
+  // The dialog, opened as the ⚙ of the thermostat's page opens it
+  const dialog = async (hass, climate = SALON) => {
+    const el = document.createElement('chauffage-settings-dialog');
+    document.body.appendChild(el);
+    el.hass = hass;
+    el.showDialog({ thermostat: climate });
+    await settle();
+    return el;
+  };
+  const choose = async (el, value) => {
+    const radio = $$(el, '[data-hvac-control]').find((r) => r.value === value);
+    radio.checked = true;
+    radio.dispatchEvent(new Event('change', { bubbles: true }));
     await settle();
     await settle();
   };
+  const checked = (el) => $$(el, '[data-hvac-control]').find((r) => r.checked).value;
 
-  test('as the house, on or off; as the house by default', async () => {
-    const el = await panel(fakeHass(), '/thermostats/climate.salon');
-    const select = $(el, '[data-hvac-control]');
-    assert.equal(text($(el, '.hvac-control span')), 'Contrôler le mode HVAC');
-    assert.deepEqual([...select.options].map((o) => o.textContent), ['Comme la maison (activé)', 'Activé', 'Désactivé']);
-    assert.equal(select.value, 'house');
+  test('the page has no menu of its own: a ⚙ in its toolbar opens the thermostat\'s settings', async () => {
+    const hass = fakeHass();
+    const manager = fakeDialogManager(hass);
+    const el = await panel(hass, '/thermostats/climate.salon');
+    assert.equal($(el, '.head [data-hvac-control]'), null);
+    const gear = $(el, '.toolbar [data-thermostat-settings]');
+    assert.equal(gear.getAttribute('aria-label'), 'Réglages du thermostat');
+    gear.click();
+    await settle();
+    assert.deepEqual(manager.shown.map((d) => [d.dialogTag, d.dialogParams.thermostat]), [['chauffage-settings-dialog', SALON]]);
+  });
+
+  test('the dialog holds this thermostat\'s setting alone: as the house, on or off; as the house by default', async () => {
+    const el = await dialog(fakeHass());
+    assert.equal($(el, '.override-settings'), null);
+    assert.equal(text($(el, '.hvac-settings h3')), 'Contrôler le mode HVAC');
+    assert.deepEqual($$(el, '.hvac-settings .choice').map(text), ['Comme la maison (activé)', 'Activé', 'Désactivé']);
+    assert.equal(checked(el), 'house');
   });
 
   test('a thermostat that says off, in a house that says on', async () => {
     const data = integrationData();
     data.thermostats[SALON].hvac_mode_control = false;
     data.hvac_mode_control = true;
-    const el = await panel(fakeHass({ data }), '/thermostats/climate.salon');
-    assert.equal($(el, '[data-hvac-control]').value, 'off');
+    assert.equal(checked(await dialog(fakeHass({ data }))), 'off');
   });
 
   test('turning it off for the thermostat asks first, for this thermostat only', async () => {
     const changes = [{ entity_id: SALON, schedule: 'normal', day: 0, start: '22:30', preset: null, hvac_mode: 'off', change: 'removed' }];
     const hass = fakeHass({ reply: (msg) => (msg.type === 'chauffage/hvac_mode_control/set' ? { changes } : null) });
-    const el = await panel(hass, '/thermostats/climate.salon');
-    await pick(el, 'off');
+    const el = await dialog(hass);
+    await choose(el, 'off');
     assert.deepEqual(hvacCalls(hass).at(-1), { type: 'chauffage/hvac_mode_control/set', value: false, entity_id: SALON, preview: true });
     assert.deepEqual($$(el, '.hvac-changes li li').map(text), ['Lun · 22:30 · Éteint → supprimé']);
     click(el, '[data-hvac-confirm]');
@@ -239,8 +260,27 @@ describe('the setting in a thermostat\'s sheet of the panel', () => {
     const data = integrationData();
     data.thermostats[SALON].hvac_mode_control = true;
     const hass = fakeHass({ data, reply: (msg) => (msg.type === 'chauffage/hvac_mode_control/set' ? { changes: [] } : null) });
-    const el = await panel(hass, '/thermostats/climate.salon');
-    await pick(el, 'house');
+    await choose(await dialog(hass), 'house');
     assert.deepEqual(hvacCalls(hass).map((m) => [m.value, !!m.preview]), [[null, true], [null, false]]);
+  });
+});
+
+describe('the presets tab without a thermostat whose HVAC mode Chauffage controls and that cools', () => {
+  const open = async (hass) => { const view = createView(hass, 'presets', { thermostats: [SALON, ATELIER] }); await settle(); return view; };
+
+  test('a preset keeps its two temperatures, and has one color: no color when cooling', async () => {
+    const view = await open(setup({ thermostats: without(ATELIER) }));
+    click(view, '[data-kind="preset"][data-preset="eco"]'); await settle();
+    const fields = text($(view, '.cell-ed .pv-fields'));
+    assert.match(fields, /En chauffe.*En clim/);
+    assert.equal($(view, '.cell-ed [data-cell-cool-color]'), null);
+    assert.doesNotMatch(fields, /Couleur en chauffe|Couleur en clim/);
+    assert.ok($(view, '.cell-ed .pv-name [data-cell-color]'), 'its color, beside its name');
+  });
+
+  test('an air conditioner whose HVAC mode Chauffage controls keeps the color when cooling', async () => {
+    const view = await open(setup({ thermostats: without(SALON) }));
+    click(view, '[data-kind="preset"][data-preset="eco"]'); await settle();
+    assert.ok($(view, '.cell-ed [data-cell-cool-color]'));
   });
 });

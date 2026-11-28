@@ -338,7 +338,7 @@ describe('the Chauffage panel', () => {
   describe('telling existing users about the new off behavior (#91)', () => {
     test('the Thermostats tab says once: a thermostat turned off by hand turns back on; its link opens the overrides page, in the user\'s language', async () => {
       const el = await panel(setup(), '/thermostats');
-      assert.match(text($(el, '.notice.new-off')), /Nouveau : un thermostat éteint à la main se rallume à la fin de sa dérogation\. Pour le laisser éteint, suspendez son pilotage\./);
+      assert.match(text($(el, '.notice.new-off')), /Nouveau : un thermostat éteint à la main se rallume à la fin de sa dérogation\. Pour le laisser éteint, désactivez Contrôler le mode HVAC./);
       const link = $(el, '.new-off a');
       assert.equal(text(link), 'En savoir plus');
       assert.match(link.href, /\/docs\/overrides\.fr\.md#%C3%A9teindre-un-thermostat-%C3%A0-la-main$/);
@@ -347,6 +347,17 @@ describe('the Chauffage panel', () => {
       const en = await panel(setup({ locale: { language: 'en' } }), '/thermostats');
       assert.match(text($(en, '.notice.new-off')), /^New: a thermostat turned off by hand turns back on/);
       assert.match($(en, '.new-off a').href, /\/docs\/overrides\.md#turn-a-thermostat-off-by-hand$/);
+    });
+
+    test('its Réglages button, next to Fermer, opens the settings at Contrôler le mode HVAC (#159)', async () => {
+      const hass = setup();
+      const manager = fakeDialogManager(hass);
+      const el = await panel(hass, '/thermostats');
+      assert.deepEqual($$(el, '.new-off .btn').map(text), ['Réglages', 'Fermer']);
+      $(el, '.new-off [data-open-settings]').click(); await settle();
+      await tick();
+      assert.deepEqual(manager.shown.map((d) => [d.dialogTag, d.dialogParams.section]), [['chauffage-settings-dialog', 'hvac']]);
+      assert.ok($(el, '.new-off'), 'the notice stays until it is closed');
     });
 
     test('closed, it stays closed on this browser', async () => {
