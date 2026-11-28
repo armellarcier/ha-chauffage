@@ -603,8 +603,9 @@ future contributor might question.
     - **A preset keeps both temperatures**, when heating and when cooling: an air conditioner
       without control still gets the cooling value when it is switched to cool by hand. What
       only cooling slots use is hidden while no thermostat whose HVAC mode Chauffage controls
-      can cool: the preset's color when cooling, and the refusal "used when cooling in a
-      schedule". The cooling temperature keeps its rule: shown when a thermostat can cool.
+      can cool: the preset's color when cooling, in the presets tab, the legend of the week and
+      the override block, and the refusal "used when cooling in a schedule". The cooling
+      temperature keeps its rule: shown when a thermostat can cool.
   - *Claude's proposal, to confirm:* a converted slot keeps its fan and its vanes, which are not
     an HVAC mode.
   - *Claude's proposals, made while implementing, to confirm:*
