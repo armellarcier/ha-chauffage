@@ -109,9 +109,10 @@ const PANEL_CSS = `
   .notice-btns { display:flex; flex-wrap:wrap; gap:8px; margin-left:auto; }
   .next-steps li > div { margin:4px 0 8px; }
   .crumbs { display:flex; align-items:baseline; gap:8px; min-width:0; }
-  .crumbs a { color:inherit; opacity:.8; text-decoration:none; }
+  .crumbs a { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:inherit; opacity:.8; text-decoration:none; }
   .crumbs a:hover { opacity:1; text-decoration:underline; }
-  .crumbs span:last-child { overflow:hidden; text-overflow:ellipsis; }
+  .crumbs span:last-child { flex-shrink:0; max-width:70%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .crumbs .sep { flex-shrink:0; }
   .sep { opacity:.6; }
   /* The header, aligned with the surface below: the tile top right, the rest on the left; on
      a phone, the tile first */

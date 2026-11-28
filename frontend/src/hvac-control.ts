@@ -7,10 +7,10 @@ import { makeLocale } from './i18n/locale.ts';
 import { presetOf } from './presets.ts';
 
 // =====================================================================
-//  The setting Control the HVAC mode (#159). Set for the house in the settings dialog, and for
-//  one thermostat in its sheet of the panel. Before a thermostat loses the control, the slots
-//  that change are listed, and the user turns it off or cancels. The host (the dialog, the panel)
-//  keeps `_hvacAsk`, `_hvacBusy` and `_hvacError`, and draws again on requestUpdate().
+//  The setting Control the HVAC mode (#159), for the house or for one thermostat, in the settings
+//  dialog. Before a thermostat loses the control, the slots that change are listed, and the user
+//  turns it off or cancels. The dialog keeps `_hvacAsk`, `_hvacBusy` and `_hvacError`, and draws
+//  again on requestUpdate().
 // =====================================================================
 
 // The slots that change, by thermostat and schedule, a slot's days together:

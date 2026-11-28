@@ -139,7 +139,6 @@ export const fr = {
   readMore: 'En savoir plus',
   settingsTitle: 'Réglages de Chauffage',
   thermostatSettings: 'Réglages du thermostat',
-  thermostatSettingsTitle: 'Réglages de {name}',
   otherOptions: 'Autres options de Chauffage',
   overridesTitle: 'Dérogations',
   overrideEndTitle: 'Fin des dérogations',

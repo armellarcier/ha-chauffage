@@ -142,7 +142,6 @@ export const en = {
   readMore: 'Read more',
   settingsTitle: 'Chauffage settings',
   thermostatSettings: 'Thermostat settings',
-  thermostatSettingsTitle: 'Settings of {name}',
   otherOptions: 'Other Chauffage options',
   overridesTitle: 'Overrides',
   overrideEndTitle: 'End of overrides',

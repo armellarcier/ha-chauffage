@@ -318,7 +318,7 @@ export class ChauffageSettingsDialog extends LitElement {
 
   _frameTemplate() {
     const t = this._t;
-    const title = this._thermostat ? t('thermostatSettingsTitle', { name: thermostatName(this.hass, this._thermostat) }) : t('settingsTitle');
+    const title = this._thermostat ? thermostatName(this.hass, this._thermostat) : t('settingsTitle');
     const close = html`<button class="close" data-close title=${t('close')} aria-label=${t('close')}>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d=${MDI.close}></path></svg></button>`;
     if (this._kind === 'wa') {
