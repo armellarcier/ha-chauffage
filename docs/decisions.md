@@ -569,7 +569,7 @@ future contributor might question.
   not only off.
   - **The setting *Control the HVAC mode* is on by default**, so nothing changes on upgrade. It
     is set for the house in the settings dialog of the panel, and each thermostat can follow the
-    house or say on or off, in its sheet of the panel.
+    house or say on or off, behind the ⚙ of its page in the panel.
   - **Off, the thermostat is scheduled as a thermostat with a single HVAC mode, as in 0.9.**
     Chauffage never sends it an HVAC mode. Its slots and its overrides choose no HVAC mode, and
     the card offers none. A change of HVAC mode by hand is never an override. A thermostat
