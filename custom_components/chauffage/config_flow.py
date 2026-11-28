@@ -167,6 +167,8 @@ class ChauffageOptionsFlow(OptionsFlow):
         lines = []
         for (entity_id, schedule), slots in groups.items():
             state = hass.states.get(entity_id)
+            if lines:
+                lines.append("")  # a group apart: Markdown would put its heading in the list above
             lines.append(f"**{state.name if state else entity_id}** · {installation.schedule_name(schedule) or schedule}")
             for (start, preset, mode, change), days in sorted(slots.items(), key=lambda item: item[0][0]):
                 name = presets.get(preset, {}).get("name", preset) if preset else None
