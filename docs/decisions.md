@@ -647,6 +647,10 @@ future contributor might question.
       setting, and `Installation` a thermostat's own. The runtime combines the two in
       `controls_hvac_mode`, and gives this one function to the gateway and the learner: they
       still take no other service. `Schedules` converts the weeks.
+    - **The options flow lists the slots in Home Assistant's words**: its names of the HVAC
+      modes (*Climatisation*, not the card's *Clim*), times as stored (06:30), and the system
+      language. An options flow does not know the user's profile, so a French profile on an
+      English Home Assistant reads the list in English. The panel's list follows the profile.
     - **A thermostat that keeps the setpoint asked while off** replaces the `vtherm` flag of
       0.10 in this rule. The Versatile Thermostat reader sets it, as it sets
       `leaves_preset_itself`: the domain still knows no VTherm.

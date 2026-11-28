@@ -369,6 +369,15 @@ async def test_turning_the_control_off_in_the_options_lists_the_slots_that_chang
         ["00:00", "comfort"], ["06:30", "comfort", FAN], ["08:30", "eco"], ["17:30", "comfort"]]
 
 
+async def test_the_confirmation_of_the_options_puts_a_slot_s_days_together(bench: Bench):
+    """As the panel: "Mon–Fri", "Sat, Sun"."""
+    await start_converting(bench)
+    await bench.save_weeks({SALON: {"normal": [AC_DAY] * 5 + [WEEKDAY] * 2}})
+    changes = (await options_with_control(bench, False))["description_placeholders"]["changes"]
+    assert "- Mon–Fri · 22:30 · Off → removed" in changes
+    assert "- Sat, Sun · 06:30 · Comfort, Heat → Comfort" in changes
+
+
 async def test_closing_the_confirmation_of_the_options_changes_nothing(bench: Bench):
     await start_converting(bench)
     result = await options_with_control(bench, False)
