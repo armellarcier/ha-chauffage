@@ -8787,10 +8787,13 @@ async function chooseHvacControl(host, value, climate) {
   host._update();
   try {
     const preview = await src.setHvacModeControl(value, climate, true);
+    // The dialog opened meanwhile for another thermostat, or for the house: the answer is not its
+    if ((host._climate || null) !== climate) return;
     const changes = (preview && preview.changes) || [];
     if (changes.length) host._hvacAsk = { value, climate, changes };
     else await src.setHvacModeControl(value, climate);
   } catch (err) {
+    if ((host._climate || null) !== climate) return;
     host._hvacError = errorText(makeLocale(host._hass).t, err);
   }
   host._hvacBusy = false;
@@ -8984,6 +8987,7 @@ class ChauffageSettingsDialog extends HTMLElement {
     this._climate = (params && params.climate) || null;
     this._hvacAsk = null;
     this._hvacError = null;
+    this._hvacBusy = false;
     seenNewSetting(this._hass);
     this._unlisten = INTEGRATION.listen(() => this._update());
     this._build();

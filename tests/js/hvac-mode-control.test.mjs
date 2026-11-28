@@ -292,6 +292,21 @@ describe('the setting of one thermostat, behind the gear of its page in the pane
     assert.equal($$(el, '[data-hvac-control]').find((r) => r.checked).value, 'house');
   });
 
+  test('a late answer for a thermostat does not reach the dialog opened again for the house', async () => {
+    let answer;
+    const hass = fakeHass({ reply: (msg) => (msg.type === 'chauffage/hvac_mode_control/set'
+      ? new Promise((resolve) => { answer = () => resolve({ changes: OFF_SLOT_REMOVED }); }) : null) });
+    const el = dialog(hass);
+    choose(el, 'off');
+    el.closeDialog();
+    el.showDialog({});
+    answer();
+    await tick();
+    await tick();
+    assert.equal($(el, '.hvac-ask'), null);
+    assert.ok($$(el, '[data-hvac-control]').every((r) => !r.disabled));
+  });
+
   test('turning it off for the thermostat asks first, for this thermostat only', async () => {
     const changes = OFF_SLOT_REMOVED;
     const hass = fakeHass({ reply: (msg) => (msg.type === 'chauffage/hvac_mode_control/set' ? { changes } : null) });
