@@ -9,7 +9,15 @@ Each entry says whether the release **migrates stored data** and what to do when
 
 ## [Unreleased]
 
-The stored data does not change format.
+## [0.10.1-beta.1] - 2026-11-28
+
+**A beta: you can turn rooms on and off yourself again** (#159). Install it to try it. The
+stored data does not change format.
+
+### Upgrading
+
+Update from HACS, with beta versions enabled, then restart Home Assistant and reload the page.
+You can upgrade from 0.10.0 directly. No stored data is migrated.
 
 ### Added
 

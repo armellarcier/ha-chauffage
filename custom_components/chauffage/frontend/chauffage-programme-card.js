@@ -8,7 +8,7 @@
  */
 
 // Release version (same as package.json and CHANGELOG.md)
-const VERSION = '0.10.0';
+const VERSION = '0.10.1-beta.1';
 
 const DAY_MIN = 1440;
 // The duration of a change by hand, in minutes: the range of the integration; its arrows move it by
