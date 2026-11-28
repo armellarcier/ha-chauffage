@@ -18,9 +18,9 @@ Le panneau a trois onglets :
 - **Préréglages.** Réglez ce que fait chaque préréglage sur chaque thermostat. Voir
   [Préréglages](presets.fr.md).
 
-**Réglages.** Ouvrez le bouton ⚙, en haut à droite du panneau, pour régler la durée des
-dérogations, la fin des dérogations, combien de temps un thermostat éteint le reste, si
-Chauffage contrôle le mode HVAC, et le niveau d'accès. Voir [Dérogations](overrides.fr.md) et
+**Réglages.** Ouvrez le bouton ⚙, en haut à droite du panneau, pour régler si Chauffage
+contrôle le mode HVAC, la durée des dérogations, la fin des dérogations, combien de temps un
+thermostat éteint le reste, et le niveau d'accès. Voir [Dérogations](overrides.fr.md) et
 [Allumer et éteindre les pièces vous-même](overrides.fr.md#allumer-et-éteindre-les-pièces-vous-même). Pour changer les autres
 [options](#options), cliquez sur *Autres options de Chauffage*, en bas des réglages. Le lien
 ouvre la page de l'intégration, où vous cliquez sur *Configurer*. Seuls les administrateurs

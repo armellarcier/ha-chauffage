@@ -119,7 +119,7 @@ Vous allumez et éteignez les pièces à la main, selon qui est là ? Désactive
 Une consigne changée à la main reste une dérogation.
 
 **Où le régler.** Pour toute la maison, ouvrez le bouton ⚙ du panneau Chauffage, ou les options
-de l'intégration (*Configurer*). Pour un seul
+de l'intégration dans Paramètres → Appareils et services → Chauffage → *Configurer*. Pour un seul
 thermostat, ouvrez sa page dans le panneau, puis son bouton ⚙, et choisissez *Comme la maison*,
 *Activé* ou *Désactivé*.
 

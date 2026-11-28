@@ -15,6 +15,7 @@ from hvac_helpers import (
     AC_MODES, BUREAU, COOL, HEAT, NIGHT_OFF, OFF, SALON, ac, clear, override, salon, sent_to, start_ac,
 )
 
+from custom_components.chauffage import config_flow
 from custom_components.chauffage.domain.manual_change import NewOverride, NoChange, classify
 from custom_components.chauffage.domain.slot import slot_hvac_mode
 from custom_components.chauffage.domain.target import Target
@@ -376,6 +377,32 @@ async def test_the_confirmation_of_the_options_puts_a_slot_s_days_together(bench
     changes = (await options_with_control(bench, False))["description_placeholders"]["changes"]
     assert "- Mon–Fri · 22:30 · Off → removed" in changes
     assert "- Sat, Sun · 06:30 · Comfort, Heat → Comfort" in changes
+
+
+async def test_the_list_of_the_options_is_by_thermostat_and_schedule(bench: Bench):
+    await start(bench, day=NIGHT_OFF, options=None, friendly_name="Salon")
+    result = await options_with_control(bench, False)
+    assert result["description_placeholders"]["changes"] == (
+        "- **Salon** · Normal\n"
+        "  - Mon–Sun · 00:00 · Off → removed\n"
+        "  - Mon–Sun · 22:30 · Off → removed")
+    bench.hass.config_entries.options.async_abort(result["flow_id"])
+
+
+async def test_the_list_of_the_options_speaks_the_language_of_home_assistant(bench: Bench):
+    """An options flow does not know the user's profile: the list is in Home Assistant's language."""
+    bench.hass.config.language = "fr"
+    await start(bench, day=NIGHT_OFF, options=None, friendly_name="Salon")
+    result = await options_with_control(bench, False)
+    assert result["description_placeholders"]["changes"].splitlines()[1] == "  - Lun–Dim · 00:00 · Éteint → supprimé"
+    bench.hass.config_entries.options.async_abort(result["flow_id"])
+
+
+def test_the_days_of_a_slot_in_a_row_are_a_range():
+    names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    assert config_flow.days_text([4, 0, 1, 2, 3], names) == "Mon–Fri"
+    assert config_flow.days_text([5, 6], names) == "Sat, Sun"
+    assert config_flow.days_text([0, 2, 3, 4, 6], names) == "Mon, Wed–Fri, Sun"
 
 
 async def test_closing_the_confirmation_of_the_options_changes_nothing(bench: Bench):

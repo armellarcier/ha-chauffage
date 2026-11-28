@@ -14,7 +14,6 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import callback
 from homeassistant.helpers import selector
-from homeassistant.helpers.translation import async_get_translations
 
 from .const import (
     ACCESS_LEVELS,
@@ -145,46 +144,63 @@ class ChauffageOptionsFlow(OptionsFlow):
 
     async def async_step_hvac_mode_control(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """The slots that change when the house stops controlling the HVAC mode (#159).
-        Submitted: the weeks are converted and the options saved."""
+        Submitted, the weeks are converted and the options saved. Closed, nothing changes."""
         if user_input is not None:
             await self._runtime.schedules.set_hvac_mode_control(self._data[CONF_HVAC_MODE_CONTROL])
             return self.async_create_entry(data=self._data)
         return self.async_show_form(step_id="hvac_mode_control", data_schema=vol.Schema({}),
-                                    description_placeholders={"changes": await self._changes_text()})
-
-    async def _changes_text(self) -> str:
-        """The slots that change, by thermostat and schedule, a slot's days together, as the
-        panel lists them: "- Mon–Fri · 22:30 · Off → removed"."""
-        hass = self.hass
-        texts = await async_get_translations(hass, hass.config.language, "selector", {DOMAIN})
-        word = lambda kind, key: texts.get(f"component.{DOMAIN}.selector.{kind}.options.{key}", str(key))  # noqa: E731
-        installation = self._runtime.installation
-        presets = installation.presets_by_id
-        groups: dict[tuple[str, str], dict[tuple, list[int]]] = {}
-        for c in self._changes:
-            slot = (c["start"], c["preset"], c["hvac_mode"], c["change"])
-            groups.setdefault((c["entity_id"], c["schedule"]), {}).setdefault(slot, []).append(c["day"])
-        lines = []
-        for (entity_id, schedule), slots in groups.items():
-            state = hass.states.get(entity_id)
-            if lines:
-                lines.append("")  # a group apart: Markdown would put its heading in the list above
-            lines.append(f"**{state.name if state else entity_id}** · {installation.schedule_name(schedule) or schedule}")
-            for (start, preset, mode, change), days in sorted(slots.items(), key=lambda item: item[0][0]):
-                name = presets.get(preset, {}).get("name", preset) if preset else None
-                before = ", ".join(part for part in (name, word("hvac_mode", mode) if mode else None) if part)
-                after = word("slot_change", "removed") if change == "removed" else name
-                lines.append(f"- {_days(days, lambda d: word('day', d))} · {start} · {before} → {after}")
-        return "\n".join(lines)
+                                    description_placeholders={"changes": changes_text(self.hass, self._runtime, self._changes)})
 
 
-def _days(days: list[int], name: Any) -> str:
-    """Days of a slot → "Mon–Fri", "Sat, Sun", "Mon, Wed–Fri", as the card writes them."""
+# The list of the slots that change, as the panel shows it (#159). Home Assistant does not
+# translate a list in a placeholder: its words, in Home Assistant's language, English otherwise
+TEXTS = {
+    "en": {
+        "days": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], "removed": "removed",
+        "hvac_modes": {"off": "Off", "heat": "Heat", "cool": "Cool", "heat_cool": "Heat/Cool", "dry": "Dry",
+                       "auto": "Auto", "fan_only": "Fan only"},
+    },
+    "fr": {
+        "days": ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"], "removed": "supprimé",
+        "hvac_modes": {"off": "Éteint", "heat": "Chauffe", "cool": "Clim", "heat_cool": "Chauffe/Clim",
+                       "dry": "Déshum.", "auto": "Auto", "fan_only": "Ventilation"},
+    },
+}
+
+
+def days_text(days: list[int], names: list[str]) -> str:
+    """Days in a row are a range: "Mon–Fri", "Sat, Sun", "Mon, Wed"."""
     runs: list[list[int]] = []
     for day in sorted(days):
         if runs and runs[-1][1] == day - 1:
             runs[-1][1] = day
         else:
             runs.append([day, day])
-    return ", ".join(f"{name(a)}–{name(b)}" if b - a >= 2 else f"{name(a)}, {name(b)}" if b > a else name(a)
+    return ", ".join(f"{names[a]}–{names[b]}" if b - a >= 2 else f"{names[a]}, {names[b]}" if b > a else names[a]
                      for a, b in runs)
+
+
+def changes_text(hass: Any, runtime: Any, changes: list[dict[str, Any]]) -> str:
+    """A Markdown list: each thermostat and schedule, then its slots, a slot's days together:
+    "Mon–Sun · 22:30 · Off → removed", "Mon–Fri · 06:30 · Comfort, Cool → Comfort"."""
+    texts = TEXTS["fr" if (hass.config.language or "").startswith("fr") else "en"]
+    installation = runtime.installation
+    groups: dict[tuple[str, str], dict[tuple, list[int]]] = {}
+    for c in changes:
+        slots = groups.setdefault((c["entity_id"], c["schedule"]), {})
+        slots.setdefault((c["start"], c["preset"], c["hvac_mode"], c["change"]), []).append(c["day"])
+
+    def preset(preset_id: str) -> str:
+        return (installation.presets_by_id.get(preset_id) or {}).get("name", preset_id)
+
+    lines = []
+    for (entity_id, schedule), slots in groups.items():
+        state = hass.states.get(entity_id)
+        name = (state and state.attributes.get("friendly_name")) or entity_id
+        lines.append(f"- **{name}** · {installation.schedule_name(schedule) or schedule}")
+        for (start, preset_id, mode, change), days in sorted(slots.items(), key=lambda item: item[0][0]):
+            before = ", ".join(x for x in (preset(preset_id) if preset_id else None,
+                                           texts["hvac_modes"].get(mode, mode) if mode else None) if x)
+            after = texts["removed"] if change == "removed" else preset(preset_id)
+            lines.append(f"  - {days_text(days, texts['days'])} · {start} · {before} → {after}")
+    return "\n".join(lines)
