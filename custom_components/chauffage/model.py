@@ -44,6 +44,10 @@ Vocabulary: docs/glossary.md.
         own_settings:        {"fan_mode": "auto", …}: the fan and the vanes the thermostat had
                              before a slot or an override chose others, to give back by the next
                              one that chooses none (optional: none to give back)
+        hvac_mode_control:   True or False: whether Chauffage controls the thermostat's HVAC
+                             mode (#159), whatever the house's setting says (optional: absent,
+                             the thermostat follows the house). Without control, its slots and
+                             its override hold no HVAC mode
         hvac_mode:           the HVAC mode the thermostat last heated or cooled in (None: not
                              seen on yet): what an off thermostat without heat is turned on in
         revision:            increases on every change of its weeks: a card saves against it, so
@@ -209,6 +213,27 @@ def empty_week(preset_ids: list[str]) -> list[list[list[str]]]:
     """The week of a new schedule: eco all week (or the first preset, without eco)."""
     fill = "eco" if "eco" in preset_ids else preset_ids[0]
     return [[["00:00", fill]] for _ in range(7)]
+
+
+def without_hvac_modes(week: list[list[list[Any]]], preset_ids: list[str]) -> list[list[list[Any]]]:
+    """A week for a thermostat whose HVAC mode Chauffage does not control (#159). A slot without a
+    preset (off, fan only, dry, auto) is removed: the slot before it continues, from the day
+    before when it started the day. The other slots lose their HVAC mode, and keep their preset,
+    their fan and their vanes. A week left without a slot is the week of a new schedule."""
+    def kept(raw: list[Any]) -> list[Any]:
+        settings = {key: value for key, value in (raw[2] if len(raw) > 2 else {}).items() if key != "hvac_mode"}
+        return [raw[0], raw[1], settings] if settings else [raw[0], raw[1]]
+
+    days = [[kept(raw) for raw in day if raw[1] is not None] for day in week]
+    if not any(days):
+        return empty_week(preset_ids)
+    out = []
+    for index, day in enumerate(days):
+        if not day or day[0][0] != "00:00":
+            before = next(d for d in (days[(index - back) % 7] for back in range(1, 8)) if d)
+            day = [["00:00", *before[-1][1:]], *day]
+        out.append(day)
+    return out
 
 
 def complete_weeks(weeks: dict[str, Any], schedule_ids: list[str], preset_ids: list[str]) -> dict[str, Any]:

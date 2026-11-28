@@ -24,6 +24,7 @@
           "override_duration": "Durée des dérogations",
           "manual_override_end": "Fin des dérogations",
           "off_override_end": "Thermostat éteint",
+          "hvac_mode_control": "Contrôler le mode HVAC",
           "use_presets": "Utiliser les préréglages des thermostats",
           "show_in_sidebar": "Afficher Chauffage dans la barre latérale",
           "sidebar_title": "Nom dans la barre latérale",
@@ -33,15 +34,24 @@
           "override_duration": "Combien de temps dure une dérogation, au plus. Une consigne changée à la main devient une dérogation.",
           "manual_override_end": "Quand s'arrête une dérogation. Un créneau qui commence dans moins de 15 min ne compte pas.",
           "off_override_end": "Quand un thermostat éteint reprend son planning : à la main, depuis la carte, ou par une automatisation qui l'éteint sans donner de fin.",
+          "hvac_mode_control": "Désactivé : Chauffage n'allume ni n'éteint jamais un thermostat, et ne le fait jamais passer du chauffage à la clim.",
           "use_presets": "Un préréglage utilise le préréglage du thermostat qui porte le même nom s'il en a un (Versatile Thermostat : comfort, eco, boost, frost). Désactivé, tous les thermostats sont pilotés en température, réglée dans le panneau Chauffage (onglet Préréglages).",
           "show_in_sidebar": "Pour les administrateurs, et pour tous les utilisateurs avec le niveau d'accès Configurer. Désactivé, vous ouvrez toujours le panneau Chauffage depuis les cartes et depuis l'appareil d'un thermostat programmé (Visiter).",
           "access_level": "Ce que peuvent modifier les utilisateurs qui ne sont pas administrateurs. Les administrateurs peuvent toujours tout modifier. Avec Configurer, leurs changements touchent toutes les pièces."
         }
+      },
+      "hvac_mode_control": {
+        "title": "Désactiver Contrôler le mode HVAC ?",
+        "description": "Ces créneaux changent :\n\n{changes}\n\nFermez cette fenêtre pour annuler."
       }
     },
     "error": {
       "invalid_override_duration": "Choisissez un nombre entier de minutes.",
-      "sidebar_title_too_long": "Choisissez un nom de 40 caractères au plus."
+      "sidebar_title_too_long": "Choisissez un nom de 40 caractères au plus.",
+      "not_running": "Chauffage ne tourne pas : ce réglage ne peut pas changer maintenant."
+    },
+    "abort": {
+      "not_running": "Chauffage s'est arrêté : rien n'a changé."
     }
   },
   "entity": {
@@ -222,6 +232,7 @@
     "temperature_in_heat_cool": { "message": "{entity_id} est en mode HVAC heat_cool, qui prend une plage de températures. Envoyez target_temp_low et target_temp_high avec hvac_mode heat_cool, ou une température avec un autre mode HVAC." },
     "preset_not_in_hvac_mode": { "message": "Le préréglage {preset} n'a pas de valeur pour le mode HVAC {hvac_mode} sur {entity_id}." },
     "hvac_mode_not_listed": { "message": "{entity_id} n'a pas le mode HVAC {hvac_mode}. Ses modes HVAC : {hvac_modes}." },
+    "hvac_mode_not_controlled": { "message": "Chauffage ne contrôle pas le mode HVAC de {entity_id} : envoyez un préréglage ou une température." },
     "range_incomplete": { "message": "Envoyez target_temp_low et target_temp_high ensemble." },
     "range_inverted": { "message": "target_temp_low doit être sous target_temp_high." },
     "heat_cool_takes_a_range": { "message": "Le mode HVAC heat_cool prend un préréglage, ou target_temp_low et target_temp_high, pas une température." },

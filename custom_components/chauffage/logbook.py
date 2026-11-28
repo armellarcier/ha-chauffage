@@ -30,6 +30,7 @@ TEXTS = {
             "expired": "expired", "thermostat": "back to the schedule on the thermostat",
             "card": "from the card", "panel": "from the panel", "service": "by a service",
             "paused": "thermostat paused", "forgotten": "thermostat forgotten",
+            "hvac_mode_not_controlled": "HVAC mode no longer controlled",
         },
         # Why a change by hand ends then (#83): when it starts, and when it expires
         "started_why": "override started: {value} until {end} ({source}, {why})",
@@ -63,6 +64,7 @@ TEXTS = {
             "expired": "expirée", "thermostat": "retour au planning sur le thermostat",
             "card": "depuis la carte", "panel": "depuis le panneau", "service": "par un service",
             "paused": "thermostat en pause", "forgotten": "thermostat oublié",
+            "hvac_mode_not_controlled": "mode HVAC plus contrôlé",
         },
         "started_why": "dérogation : {value} jusqu'à {end} ({source}, {why})",
         "ends": {"duration": "pendant {duration}", "next_slot": "jusqu'au prochain créneau", "no_next_slot": "aucun créneau prévu"},

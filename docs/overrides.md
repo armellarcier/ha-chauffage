@@ -74,6 +74,9 @@ Chauffage turns the thermostat back on.
 
 On a Versatile Thermostat, turning off by hand is an override from Versatile Thermostat 10.5.
 
+To turn rooms on and off yourself, without an override, see
+[Turn rooms on and off yourself](#turn-rooms-on-and-off-yourself).
+
 **How long a thermostat stays off.** In the settings, under *Overrides*, the setting *Turned
 off* has the same three choices as the end of the other overrides. The default is *Until the
 next slot*. The setting also applies when you tap *Off* on the card, and when an automation
@@ -89,3 +92,31 @@ a schedule whose slots are *Off*.
 
 **A Versatile Thermostat that turns itself off**, for example for an open window, has no
 override. The Versatile Thermostat turns itself back on when the window closes.
+
+## Turn rooms on and off yourself
+
+Do you turn rooms on and off by hand, as people come and go? Turn off the setting *Control the
+HVAC mode*. Chauffage then leaves the HVAC mode to you, as before version 0.10.
+
+**What changes.**
+
+- Chauffage never turns a thermostat on or off, and never switches it between heat and cool.
+- Turning a thermostat off or on by hand is not an override.
+- A thermostat that you turned off gets nothing until you turn it back on. Chauffage then sets
+  it to its slot.
+- A Versatile Thermostat keeps getting its slots while it is off. So it starts again on the
+  right preset.
+- On an air conditioner, the HVAC mode that you chose picks the preset's temperature. For
+  example, *Comfort* gives 25 °C while the air conditioner cools.
+
+A setpoint changed by hand is still an override.
+
+**Where to set it.** For the whole house, open the ⚙ of the Chauffage panel, or the
+integration's options in Settings → Devices & services → Chauffage → *Configure*. For one thermostat,
+open its page in the panel, tap its ⚙, then choose *As the house*, *On* or *Off*.
+
+**Your weeks change.** Before the setting turns off, the panel or the options list the slots that
+change. You
+then confirm or cancel. A slot without a preset, such as *Off* or *Fan only*, is removed, and
+the slot before it goes on. A *Heat* or *Cool* slot keeps its preset and loses its HVAC mode.
+Turning the setting back on changes nothing in the weeks.

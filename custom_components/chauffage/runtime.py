@@ -45,12 +45,14 @@ from .history import TemperatureHistory
 from .const import (
     ACCESS_LEVELS,
     CONF_ACCESS_LEVEL,
+    CONF_HVAC_MODE_CONTROL,
     CONF_MANUAL_OVERRIDE_END,
     CONF_OFF_OVERRIDE_END,
     CONF_OVERRIDE_DURATION,
     CONF_USE_PRESETS,
     CONTROL_KEY,
     DEFAULT_ACCESS_LEVEL,
+    DEFAULT_HVAC_MODE_CONTROL,
     DEFAULT_MANUAL_OVERRIDE_END,
     DEFAULT_OFF_OVERRIDE_END,
     DEFAULT_OVERRIDE_DURATION,
@@ -103,7 +105,7 @@ class ThermostatPaused(model.InvalidData):
 VTHERM = "versatile_thermostat"  # Versatile Thermostat's integration
 
 
-def thermostat(state: State | None, vtherm: bool = False) -> engine.Thermostat | None:
+def thermostat(state: State | None, vtherm: bool = False, hvac_control: bool = True) -> engine.Thermostat | None:
     """`vtherm`: the entity is a Versatile Thermostat (see Runtime.current). A VTherm is read as
     it was asked (requested_state, #92): off by its window or its auto start/stop, it is still "on" for Chauffage. A VTherm
     without requested_state (before VTherm 10.5) that is off is read as on too: it keeps the
@@ -130,6 +132,7 @@ def thermostat(state: State | None, vtherm: bool = False) -> engine.Thermostat |
         swing_horizontal_mode=engine.preset_value(attributes.get("swing_horizontal_mode")),
         supports_range=bool(int(attributes.get("supported_features") or 0) & ClimateEntityFeature.TARGET_TEMPERATURE_RANGE),
         **{key: engine.temperature_value(attributes.get(key)) for key in engine.RANGE_KEYS},
+        hvac_control=hvac_control,
     )
     if vtherm and hvac_mode is None and state.state == engine.OFF:
         current = dataclasses.replace(current, state=engine.on_mode(current) or "heat", shown=engine.OFF)
@@ -406,9 +409,93 @@ class ChauffageRuntime:
 
     def current(self, state: State | None) -> engine.Thermostat | None:
         """What the scheduler needs to know about a thermostat. A Versatile Thermostat is
-        recognized by its integration, not by its attributes: VTherm moved some of them (#74)."""
-        entry = er.async_get(self.hass).async_get(state.entity_id) if state is not None else None
-        return thermostat(state, entry is not None and entry.platform == VTHERM)
+        recognized by its integration, not by its attributes: VTherm moved some of them (#74).
+        It says whether Chauffage controls its HVAC mode (#159)."""
+        if state is None:
+            return None
+        entry = er.async_get(self.hass).async_get(state.entity_id)
+        return thermostat(state, entry is not None and entry.platform == VTHERM, self.controls_hvac_mode(state.entity_id))
+
+    @property
+    def hvac_mode_control(self) -> bool:
+        """The setting *Control the HVAC mode* of the house (#159): on by default."""
+        return bool(self.entry.options.get(CONF_HVAC_MODE_CONTROL, DEFAULT_HVAC_MODE_CONTROL))
+
+    def controls_hvac_mode(self, entity_id: str) -> bool:
+        """Whether Chauffage controls a thermostat's HVAC mode: its own setting, else the house's."""
+        own = self.thermostats.get(entity_id, {}).get(CONF_HVAC_MODE_CONTROL)
+        return self.hvac_mode_control if own is None else own
+
+    def hvac_mode_changes(self, value: bool | None, entity_id: str | None = None) -> tuple[list[str], list[dict[str, Any]]]:
+        """What setting *Control the HVAC mode* to `value` changes, for the house (`entity_id`
+        None) or one thermostat (None: it follows the house): the scheduled thermostats that
+        lose the control, and the slots that change in their weeks, in every schedule. A slot
+        without a preset is removed ("removed"); a slot that runs in an HVAC mode on the
+        thermostat loses it ("hvac_mode_removed")."""
+        house = value if entity_id is None else self.hvac_mode_control
+        losing = []
+        for e, t in self.scheduled.items():
+            if entity_id is not None and e != entity_id:
+                continue
+            own = value if e == entity_id else t.get(CONF_HVAC_MODE_CONTROL)
+            if self.controls_hvac_mode(e) and not (house if own is None else own):
+                losing.append(e)
+        changes = []
+        for e in losing:
+            state = self.hass.states.get(e)
+            current = dataclasses.replace(self.current(state), hvac_control=True) if state is not None else None
+            for schedule in self.data["schedules"]:
+                for day, slots in enumerate(self.scheduled[e]["weeks"].get(schedule["id"]) or []):
+                    for raw in slots:
+                        settings = raw[2] if len(raw) > 2 else {}
+                        mode = (settings.get("hvac_mode") if raw[1] is None
+                                else engine.slot_hvac_mode(settings, current))
+                        if mode is None and raw[1] is not None:
+                            continue
+                        changes.append({"entity_id": e, "schedule": schedule["id"], "day": day, "start": raw[0],
+                                        "preset": raw[1], "hvac_mode": mode,
+                                        "change": "removed" if raw[1] is None else "hvac_mode_removed"})
+        return losing, changes
+
+    async def set_hvac_mode_control(self, value: bool | None, entity_id: str | None = None,
+                                    preview: bool = False) -> list[dict[str, Any]]:
+        """Sets *Control the HVAC mode* for the house (`entity_id` None) or one thermostat (None:
+        it follows the house), from the panel (#159). The thermostats that lose the control get
+        their weeks converted (model.without_hvac_modes) and their override without an HVAC mode:
+        an off override, left with nothing, ends. `preview`: only says which slots change
+        (hvac_mode_changes). Turning the control on converts nothing."""
+        if entity_id is None and value is None:
+            raise model.InvalidData("the house controls the HVAC mode or not")
+        if entity_id is not None and entity_id not in self.scheduled:
+            raise model.InvalidData(f"not scheduled: {entity_id}")
+        losing, changes = self.hvac_mode_changes(value, entity_id)
+        if preview:
+            return changes
+        preset_ids = list(self.presets_by_id)
+        for e in losing:
+            weeks = self.thermostats[e]["weeks"]
+            for schedule_id, week in weeks.items():
+                weeks[schedule_id] = model.without_hvac_modes(week, preset_ids)
+            override = self.data["overrides"].get(e)
+            if override is not None and "hvac_mode" in override["target"]:
+                target = {key: v for key, v in override["target"].items() if key != "hvac_mode"}
+                if target:
+                    self._keep_override(e, {**override, "target": target}, "panel")
+                else:
+                    self._drop_override(e, "hvac_mode_not_controlled")
+        if losing:
+            self._weeks_changed(losing)
+            self.data["revision"] += 1
+        if entity_id is None:
+            self.hass.config_entries.async_update_entry(
+                self.entry, options={**self.entry.options, CONF_HVAC_MODE_CONTROL: value})
+        elif value is None:
+            self.thermostats[entity_id].pop(CONF_HVAC_MODE_CONTROL, None)
+        else:
+            self.thermostats[entity_id][CONF_HVAC_MODE_CONTROL] = value
+        self._changed()
+        await self.apply(force=True, reason="HVAC mode control changed")
+        return changes
 
     def _learned(self, entity_id: str, cool: bool = False) -> dict[str, float]:
         """{own preset: temperature} learned from a thermostat. `cool`: while it cooled."""
@@ -525,9 +612,12 @@ class ChauffageRuntime:
             "presets": self.data["presets"],
             # cause: why a VTherm protects itself ("window", "auto_start_stop"), None otherwise
             # own_settings: the fan and the vanes it gets back from a slot that sets none
+            # hvac_mode_control: its own setting (None: follows the house, #159)
             "thermostats": {e: {"paused": t["paused"], "revision": t["revision"], "cause": self.cause(e),
-                                "own_settings": self.own_settings(e)}
+                                "own_settings": self.own_settings(e),
+                                "hvac_mode_control": t.get(CONF_HVAC_MODE_CONTROL)}
                             for e, t in self.scheduled.items()},
+            "hvac_mode_control": self.hvac_mode_control,
             "mappings": self.mappings,
             "targets": {e: self.targets_of(e) for e in self.scheduled},
             "weeks": self.weeks,
@@ -736,6 +826,12 @@ class ChauffageRuntime:
                 current = scheduled.get(entity_id, {}).get("revision")
                 if revisions.get(entity_id) != current:
                     raise StaleRevision
+        # A thermostat whose HVAC mode Chauffage does not control: its slots choose none (#159)
+        for entity_id, by_schedule in normalized.items():
+            if not self.controls_hvac_mode(entity_id) and any(
+                    len(slot) > 2 and "hvac_mode" in slot[2]
+                    for week in by_schedule.values() for day in week for slot in day):
+                raise model.InvalidData(f"{entity_id}: Chauffage does not control its HVAC mode")
         schedule_ids = [schedule["id"] for schedule in self.data["schedules"]]
         preset_ids = list(self.presets_by_id)
         for entity_id, by_schedule in normalized.items():
@@ -1085,6 +1181,8 @@ class ChauffageRuntime:
             await self.apply(resumed=entity_id, reason=f"override ended ({source})")
             return
         override = model.normalize_override(override)
+        if "hvac_mode" in override["target"] and not self.controls_hvac_mode(entity_id):
+            raise model.InvalidData(f"{entity_id}: Chauffage does not control its HVAC mode")
         current = self.current(self.hass.states.get(entity_id))
         target = override["target"] = engine.fit(override["target"], current)
         before = self.data["overrides"].get(entity_id)
